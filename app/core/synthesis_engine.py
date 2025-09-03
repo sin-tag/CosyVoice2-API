@@ -238,33 +238,34 @@ class SynthesisEngine:
         """Common synthesis method"""
         import time
         start_time = time.time()
-        
+
+        def _sync_synthesis():
+            if mode == "sft":
+                # SFT synthesis
+                synthesis_generator = model.inference_sft(text, voice_id, stream=stream, speed=speed)
+            else:
+                raise ValueError(f"Unsupported synthesis mode: {mode}")
+
+            # Collect audio chunks
+            audio_chunks = []
+            for model_output in synthesis_generator:
+                if 'tts_speech' in model_output:
+                    audio_chunks.append(model_output['tts_speech'])
+
+            if not audio_chunks:
+                raise SynthesisError("No audio generated")
+
+            # Concatenate audio chunks
+            final_audio = torch.cat(audio_chunks, dim=1)
+
+            # Save audio
+            torchaudio.save(output_path, final_audio, model.sample_rate)
+
+            return time.time() - start_time
+
+        # Run synthesis in thread pool to avoid blocking
         loop = asyncio.get_event_loop()
-        
-        if mode == "sft":
-            # SFT synthesis
-            synthesis_generator = await loop.run_in_executor(
-                None, lambda: model.inference_sft(text, voice_id, stream=stream, speed=speed)
-            )
-        else:
-            raise ValueError(f"Unsupported synthesis mode: {mode}")
-        
-        # Collect audio chunks
-        audio_chunks = []
-        for model_output in synthesis_generator:
-            if 'tts_speech' in model_output:
-                audio_chunks.append(model_output['tts_speech'])
-        
-        if not audio_chunks:
-            raise SynthesisError("No audio generated")
-        
-        # Concatenate audio chunks
-        final_audio = torch.cat(audio_chunks, dim=1)
-        
-        # Save audio
-        torchaudio.save(output_path, final_audio, model.sample_rate)
-        
-        return time.time() - start_time
+        return await loop.run_in_executor(None, _sync_synthesis)
 
     async def _synthesize_with_cached_voice(self, model, text: str, voice_id: str,
                                           output_path: str, speed: float, stream: bool) -> float:

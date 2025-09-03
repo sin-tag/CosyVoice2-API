@@ -103,7 +103,14 @@ curl -X GET "http://localhost:8000/api/v1/voices/pretrained/list"
 
 ## Voice Synthesis
 
+The API supports both **synchronous** and **asynchronous** voice synthesis:
+
+- **Sync endpoints** (`/api/v1/synthesize/*`): Return results immediately (may take time)
+- **Async endpoints** (`/api/v1/async/synthesize/*`): Return task ID immediately, check status later
+
 ### 1. SFT Synthesis (Pre-trained Voices)
+
+#### Synchronous:
 
 ```bash
 curl -X POST "http://localhost:8000/api/v1/synthesize/sft" \
@@ -143,6 +150,40 @@ if result["success"]:
         f.write(audio_response.content)
     
     print(f"Audio saved to output.wav (duration: {result['duration']}s)")
+```
+
+#### Asynchronous:
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/async/synthesize/sft" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Hello, how are you today?",
+    "voice_id": "pretrained_voice_001",
+    "speed": 1.0,
+    "format": "wav"
+  }'
+```
+
+Response:
+```json
+{
+  "task_id": "task_abc123def456",
+  "status": "submitted",
+  "message": "SFT synthesis task submitted successfully",
+  "check_status_url": "/api/v1/async/tasks/task_abc123def456/status",
+  "result_url": "/api/v1/async/tasks/task_abc123def456/result"
+}
+```
+
+Check status:
+```bash
+curl -X GET "http://localhost:8000/api/v1/async/tasks/task_abc123def456/status"
+```
+
+Get result when completed:
+```bash
+curl -X GET "http://localhost:8000/api/v1/async/tasks/task_abc123def456/result"
 ```
 
 ### 2. Zero-shot Synthesis (with Cached Voice)

@@ -17,12 +17,14 @@ from fastapi.responses import JSONResponse
 
 # Add the project root to Python path
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(ROOT_DIR)
-sys.path.append(f'{ROOT_DIR}/cosyvoice_original')
-sys.path.append(f'{ROOT_DIR}/cosyvoice_original/third_party/Matcha-TTS')
+sys.path.insert(0, ROOT_DIR)
+sys.path.insert(0, f'{ROOT_DIR}/cosyvoice_original')
+sys.path.insert(0, f'{ROOT_DIR}/cosyvoice_original/third_party/Matcha-TTS')
 
 from app.core.config import settings
 from app.core.voice_manager import VoiceManager
+from app.core.async_synthesis import AsyncSynthesisManager
+from app.core.synthesis_engine import SynthesisEngine
 from app.api.v1.router import api_router
 from app.core.exceptions import setup_exception_handlers
 
@@ -33,38 +35,48 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Global voice manager instance
+# Global instances
 voice_manager: VoiceManager = None
+async_synthesis_manager: AsyncSynthesisManager = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager"""
-    global voice_manager
-    
+    global voice_manager, async_synthesis_manager
+
     logger.info("Starting CosyVoice2 API server...")
-    
+
     try:
         # Initialize voice manager
         voice_manager = VoiceManager(
             model_dir=settings.MODEL_DIR,
             cache_dir=settings.VOICE_CACHE_DIR
         )
-        
+
         # Load cached voices on startup
         await voice_manager.initialize()
         logger.info("Voice manager initialized successfully")
-        
+
+        # Initialize synthesis engine and async manager
+        synthesis_engine = SynthesisEngine(voice_manager)
+        async_synthesis_manager = AsyncSynthesisManager(synthesis_engine)
+        await async_synthesis_manager.start()
+        logger.info("Async synthesis manager initialized successfully")
+
         # Store in app state for access in routes
         app.state.voice_manager = voice_manager
-        
+        app.state.async_synthesis_manager = async_synthesis_manager
+
         yield
-        
+
     except Exception as e:
         logger.error(f"Failed to initialize application: {e}")
         raise
     finally:
         logger.info("Shutting down CosyVoice2 API server...")
+        if async_synthesis_manager:
+            await async_synthesis_manager.stop()
         if voice_manager:
             await voice_manager.cleanup()
 
@@ -109,7 +121,8 @@ def create_app() -> FastAPI:
         """Health check endpoint"""
         return {
             "status": "healthy",
-            "voice_manager_ready": voice_manager is not None and voice_manager.is_ready()
+            "voice_manager_ready": voice_manager is not None and voice_manager.is_ready(),
+            "async_synthesis_ready": async_synthesis_manager is not None
         }
     
     return app
