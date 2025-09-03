@@ -22,11 +22,26 @@ python scripts/download_model.py
 # 5. Verify installation (optional)
 python scripts/verify_installation.py
 
-# 6. Start server
-python main.py
+# 6. Start server (choose one method)
+python start.py              # Auto-installs missing deps (recommended)
+# OR
+python run_uvicorn.py        # Uvicorn with proper path setup
+# OR
+python main.py               # Direct start
+# OR
+uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1  # Now works!
 ```
 
 🎉 **Done!** API is now running at http://localhost:8000
+
+## 🔧 Fixed Issues
+
+✅ **All startup methods now work:**
+- `python start.py` - Auto-installs dependencies
+- `python run_uvicorn.py` - Uvicorn wrapper
+- `uvicorn main:app ...` - Direct uvicorn (fixed!)
+- Auto-install missing: pydantic-settings, whisper, WeTextProcessing
+- Fixed: `ModuleNotFoundError: No module named 'app.models'`
 
 ## 📋 Step-by-Step Instructions
 
