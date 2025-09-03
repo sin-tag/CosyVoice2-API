@@ -17,10 +17,16 @@ A FastAPI-based REST API for CosyVoice2 voice cloning and text-to-speech synthes
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/sin-tag/CosyVoice2-API.git
 cd CosyVoice2-API
 
-# Install dependencies
+# Run setup script (recommended)
+chmod +x scripts/setup.sh
+./scripts/setup.sh
+
+# Or install manually
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
@@ -36,11 +42,13 @@ nano .env
 
 ### 3. Download Models
 
-Download the CosyVoice2 model and place it in the `models/` directory:
+Download the CosyVoice2 model:
 
 ```bash
-mkdir -p models
-# Download your preferred CosyVoice2 model to models/CosyVoice2-0.5B/
+# Using the provided script (recommended)
+python scripts/download_model.py
+
+# Or manually download and extract to models/CosyVoice2-0.5B/
 ```
 
 ### 4. Run the Server
