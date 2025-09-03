@@ -10,11 +10,11 @@ pydantic-settings>=2.0.0,<3.0.0
 # Audio processing
 librosa==0.10.1
 soundfile==0.12.1
-torchaudio==2.1.0
-torch==2.1.0
+torchaudio==2.2.0
+torch==2.2.0
 
 # Machine learning and AI
-numpy==1.24.3
+numpy<2  # Changed to avoid compatibility issues with compiled modules
 scipy==1.11.4
 transformers>=4.37.0,<5.0.0
 modelscope==1.9.5
@@ -39,6 +39,26 @@ num2words==0.5.13
 # Speech processing
 openai-whisper>=20231117
 WeTextProcessing>=1.0.3
+
+# Additional dependencies discovered during setup
+gradio
+lightning
+omegaconf
+diffusers
+hydra-core
+gdown
+matplotlib
+wget
+pyarrow
+pyworld
+wetext
+conformer
+seaborn
+wandb
+tensorboard
+rich
+setuptools
+wheel
 
 # Development and testing
 pytest==7.4.3

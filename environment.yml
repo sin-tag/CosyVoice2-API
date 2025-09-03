@@ -5,7 +5,7 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python=3.9
+  - python=3.10
   - pytorch
   - torchvision
   - torchaudio
@@ -39,6 +39,25 @@ dependencies:
     - num2words==0.5.13
     - openai-whisper>=20231117
     - WeTextProcessing>=1.0.3
+    # Additional dependencies discovered during setup
+    - gradio
+    - lightning
+    - omegaconf
+    - diffusers
+    - hydra-core
+    - gdown
+    - matplotlib
+    - wget
+    - pyarrow
+    - pyworld
+    - wetext
+    - conformer
+    - seaborn
+    - wandb
+    - tensorboard
+    - rich
+    - setuptools
+    - wheel
     - pytest==7.4.3
     - pytest-asyncio==0.21.1
     - black==23.11.0

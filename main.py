@@ -88,19 +88,13 @@ def setup_python_path():
     if os.getcwd() != ROOT_DIR:
         os.chdir(ROOT_DIR)
 
-    # Setup paths
+    # Setup paths - only add what we absolutely need
     paths = [
-        ROOT_DIR,
+        ROOT_DIR,  # Our project root should come first
         os.path.join(ROOT_DIR, 'cosyvoice_original'),
-        os.path.join(ROOT_DIR, 'cosyvoice_original', 'third_party', 'Matcha-TTS')
     ]
 
-    # Add Matcha source directory
-    matcha_src = os.path.join(ROOT_DIR, 'cosyvoice_original', 'third_party', 'Matcha-TTS', 'matcha')
-    if os.path.exists(matcha_src):
-        paths.append(matcha_src)
-
-    # Insert paths
+    # Insert paths - ROOT_DIR first to ensure our app module takes precedence
     for path in paths:
         if os.path.exists(path) and path not in sys.path:
             sys.path.insert(0, path)

@@ -13,7 +13,55 @@ A FastAPI-based REST API for CosyVoice2 voice cloning and text-to-speech synthes
 
 ## Quick Start
 
-### 1. Installation Options
+### 🚀 One-Command Setup and Run
+
+The easiest way to get started is using our automated setup script:
+
+#### For Linux/macOS:
+```bash
+# Clone the repository
+git clone https://github.com/sin-tag/CosyVoice2-API.git
+cd CosyVoice2-API
+
+# Run the automated setup and server script
+./run_server.sh
+```
+
+#### For Windows:
+```batch
+# Clone the repository
+git clone https://github.com/sin-tag/CosyVoice2-API.git
+cd CosyVoice2-API
+
+# Run the automated setup and server script
+run_server.bat
+```
+
+The script will automatically:
+- ✅ Check Python version (3.10+ recommended)
+- ✅ Create and activate virtual environment
+- ✅ Install all required dependencies
+- ✅ Setup model directories
+- ✅ Clean up unnecessary files
+- ✅ Start the API server
+
+### 📋 Script Options
+
+```bash
+# Custom host and port
+./run_server.sh --host 127.0.0.1 --port 8080
+
+# Skip setup if already configured
+./run_server.sh --skip-setup
+
+# Multiple workers
+./run_server.sh --workers 2
+
+# Show help
+./run_server.sh --help
+```
+
+### 1. Manual Installation Options
 
 #### Option A: Using Conda (Recommended)
 
@@ -22,18 +70,9 @@ A FastAPI-based REST API for CosyVoice2 voice cloning and text-to-speech synthes
 git clone https://github.com/sin-tag/CosyVoice2-API.git
 cd CosyVoice2-API
 
-# Create conda environment
-conda create -n cosyvoice2-api python=3.9 -y
+# Create conda environment with Python 3.10
+conda env create -f environment.yml
 conda activate cosyvoice2-api
-
-# Install PyTorch with CUDA support
-conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia -y
-
-# Install audio libraries
-conda install -c conda-forge librosa soundfile -y
-
-# Install other dependencies
-pip install -r requirements.txt
 ```
 
 #### Option B: Using Virtual Environment
@@ -43,11 +82,12 @@ pip install -r requirements.txt
 git clone https://github.com/sin-tag/CosyVoice2-API.git
 cd CosyVoice2-API
 
-# Run setup script (recommended)
-chmod +x scripts/setup.sh
-./scripts/setup.sh
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-# Or install manually
+# Install dependencies
+pip install -r requirements.txt
 python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
