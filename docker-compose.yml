@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  cosyvoice2-api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - DEBUG=false
+      - MODEL_DIR=/app/models/CosyVoice2-0.5B
+      - VOICE_CACHE_DIR=/app/voice_cache
+      - OUTPUT_DIR=/app/outputs
+    volumes:
+      - ./models:/app/models
+      - ./voice_cache:/app/voice_cache
+      - ./outputs:/app/outputs
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
