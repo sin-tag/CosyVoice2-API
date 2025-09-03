@@ -124,13 +124,12 @@ python scripts/download_model.py --model-id iic/CosyVoice2-0.5B --target-dir mod
 ### 10. Verify Installation
 
 ```bash
-# Test PyTorch CUDA availability
+# Run comprehensive verification script
+python scripts/verify_installation.py
+
+# Or test individual components
 python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
-
-# Test audio libraries
 python -c "import librosa, soundfile; print('Audio libraries OK')"
-
-# Test CosyVoice imports
 python -c "from cosyvoice.cli.cosyvoice import CosyVoice; print('CosyVoice import OK')"
 ```
 

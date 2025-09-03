@@ -19,7 +19,10 @@ conda activate cosyvoice2-api
 # 4. Download model
 python scripts/download_model.py
 
-# 5. Start server
+# 5. Verify installation (optional)
+python scripts/verify_installation.py
+
+# 6. Start server
 python main.py
 ```
 
