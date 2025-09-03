@@ -58,9 +58,27 @@ class VoiceCache:
                         model_data = voice_data['model_data']
                         tensor_model_data = {}
                         for key, value in model_data.items():
-                            if isinstance(value, list):
-                                # Convert list back to tensor
-                                tensor_model_data[key] = torch.tensor(np.array(value))
+                            if isinstance(value, dict) and 'data' in value:
+                                # New format with dtype and shape info
+                                data = np.array(value['data'])
+                                dtype_str = value.get('dtype', 'torch.float32')
+
+                                # Convert dtype string to torch dtype
+                                if 'float32' in dtype_str:
+                                    dtype = torch.float32
+                                elif 'float64' in dtype_str:
+                                    dtype = torch.float64
+                                elif 'int32' in dtype_str:
+                                    dtype = torch.int32
+                                elif 'int64' in dtype_str:
+                                    dtype = torch.int64
+                                else:
+                                    dtype = torch.float32  # Default fallback
+
+                                tensor_model_data[key] = torch.tensor(data, dtype=dtype)
+                            elif isinstance(value, list):
+                                # Old format - convert list back to tensor with float32
+                                tensor_model_data[key] = torch.tensor(np.array(value), dtype=torch.float32)
                             else:
                                 tensor_model_data[key] = value
                         voice_data['model_data'] = tensor_model_data
@@ -94,11 +112,20 @@ class VoiceCache:
                     serializable_model_data = {}
                     for key, value in model_data.items():
                         if hasattr(value, 'cpu') and hasattr(value, 'numpy'):
-                            # Convert PyTorch tensor to list
-                            serializable_model_data[key] = value.cpu().numpy().tolist()
+                            # Convert PyTorch tensor to dict with data and dtype
+                            tensor_cpu = value.cpu()
+                            serializable_model_data[key] = {
+                                'data': tensor_cpu.numpy().tolist(),
+                                'dtype': str(tensor_cpu.dtype),
+                                'shape': list(tensor_cpu.shape)
+                            }
                         elif hasattr(value, 'tolist'):
-                            # Convert numpy array to list
-                            serializable_model_data[key] = value.tolist()
+                            # Convert numpy array to dict with data and dtype
+                            serializable_model_data[key] = {
+                                'data': value.tolist(),
+                                'dtype': str(value.dtype),
+                                'shape': list(value.shape)
+                            }
                         else:
                             # Keep as is for other types
                             serializable_model_data[key] = value
