@@ -168,10 +168,13 @@ python scripts/download_model.py --model-id iic/CosyVoice-300M
 # Or check internet connection and disk space
 ```
 
-### Issue: Import errors
+### Issue: Import errors or dependency conflicts
 **Solution**:
 ```bash
-# Make sure you're in the right environment
+# Run the automatic fix script
+python scripts/fix_dependencies.py
+
+# Or make sure you're in the right environment
 conda activate cosyvoice2-api
 
 # Reinstall dependencies
@@ -187,10 +190,11 @@ pip install -r requirements-conda.txt --force-reinstall
 
 ## 🆘 Need Help?
 
+- **Quick Fixes**: Run `python scripts/fix_dependencies.py`
 - **Detailed Setup**: [CONDA_SETUP.md](CONDA_SETUP.md)
+- **Troubleshooting**: [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
 - **API Examples**: [docs/API_EXAMPLES.md](docs/API_EXAMPLES.md)
 - **Deployment Guide**: [DEPLOYMENT.md](DEPLOYMENT.md)
-- **Troubleshooting**: Check the guides above for common solutions
 
 ## 🎯 What's Next?
 

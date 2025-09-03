@@ -4,7 +4,14 @@ Configuration settings for CosyVoice2 API
 
 import os
 from typing import List, Optional
-from pydantic import BaseSettings, Field
+
+try:
+    # Pydantic v2
+    from pydantic_settings import BaseSettings
+    from pydantic import Field
+except ImportError:
+    # Pydantic v1 fallback
+    from pydantic import BaseSettings, Field
 
 
 class Settings(BaseSettings):

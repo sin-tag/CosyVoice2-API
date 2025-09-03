@@ -111,9 +111,9 @@ fi
 
 # Install Python dependencies
 print_status "Installing Python dependencies..."
-pip install fastapi uvicorn[standard] python-multipart
-pip install pydantic pydantic-settings
-pip install aiofiles python-jose[cryptography] httpx
+pip install "fastapi>=0.104.0,<1.0.0" "uvicorn[standard]>=0.24.0,<1.0.0" "python-multipart>=0.0.6,<1.0.0"
+pip install "pydantic>=2.0.0,<3.0.0" "pydantic-settings>=2.0.0,<3.0.0"
+pip install aiofiles "python-jose[cryptography]" httpx
 pip install tqdm hyperpyyaml onnxruntime
 pip install modelscope transformers
 
@@ -123,7 +123,7 @@ pip install pypinyin jieba inflect eng_to_ipa unidecode cn2an num2words
 
 # Install development dependencies
 print_status "Installing development dependencies..."
-pip install pytest pytest-asyncio black flake8 gunicorn
+pip install pytest pytest-asyncio black flake8 "gunicorn>=21.0.0,<22.0.0"
 
 # Create necessary directories
 print_status "Creating necessary directories..."
@@ -178,3 +178,4 @@ pip freeze > requirements-conda.txt
 
 print_success "Environment exported to environment.yml and requirements-conda.txt"
 print_success "Setup complete! 🎉"
+print_status "If you encounter dependency issues, run: python scripts/fix_dependencies.py"

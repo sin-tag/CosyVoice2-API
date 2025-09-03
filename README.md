@@ -210,6 +210,8 @@ CosyVoice2-API/
 ## Detailed Setup Guides
 
 - **[Conda Setup Guide](CONDA_SETUP.md)** - Comprehensive conda-based installation
+- **[Quick Start Guide](QUICK_START.md)** - Get running in minutes
+- **[Troubleshooting Guide](TROUBLESHOOTING.md)** - Fix common issues
 - **[Docker Deployment](DEPLOYMENT.md)** - Docker and production deployment
 - **[API Examples](docs/API_EXAMPLES.md)** - Detailed API usage examples
 
@@ -225,10 +227,13 @@ CosyVoice2-API/
 
 ### Common Issues
 
-1. **CUDA not available**: Install proper NVIDIA drivers and CUDA toolkit
-2. **Audio processing errors**: Install ffmpeg system package
-3. **Model download fails**: Check internet connection and disk space
-4. **Import errors**: Ensure all dependencies are installed in the correct environment
+1. **Pydantic Import Error**: Run `python scripts/fix_dependencies.py`
+2. **CUDA not available**: Install proper NVIDIA drivers and CUDA toolkit
+3. **Audio processing errors**: Install ffmpeg system package
+4. **Model download fails**: Check internet connection and disk space
+5. **Import errors**: Ensure all dependencies are installed in the correct environment
+
+For detailed solutions, see **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)**
 
 ### Getting Help
 
