@@ -29,21 +29,32 @@ print(f"Python paths added: {len(paths)}")
 # Test critical imports
 try:
     print("Testing imports...")
+
+    # Check pydantic-settings first
+    try:
+        from pydantic_settings import BaseSettings
+    except ImportError:
+        print("⚠️  pydantic-settings not found, installing...")
+        import subprocess
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "pydantic-settings>=2.0.0"])
+        print("✓ pydantic-settings installed")
+
     from app.core.config import settings
     print("✓ Config OK")
-    
+
     from app.models.voice import VoiceCreate
     print("✓ Models OK")
-    
+
     from app.core.voice_cache import VoiceCache
     print("✓ Voice cache OK")
-    
+
     print("✓ All imports successful")
-    
+
 except Exception as e:
     print(f"❌ Import failed: {e}")
     import traceback
     traceback.print_exc()
+    print("\n💡 Try running: pip install pydantic-settings")
     sys.exit(1)
 
 # Start the server
