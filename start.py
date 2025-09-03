@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Simple CosyVoice2 API Server Starter
-Direct approach with minimal complexity
+CosyVoice2 API Server Starter
+The ONLY startup script you need
 """
 
 import os
