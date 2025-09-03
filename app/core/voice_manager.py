@@ -10,17 +10,12 @@ import logging
 from typing import Optional, Dict, Any, List, Generator
 from pathlib import Path
 
-# Add CosyVoice to path - CRITICAL for uvicorn direct usage
+# Path setup should be handled by main.py - keep this simple
+# Just add the basic cosyvoice path if needed
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-paths_to_add = [
-    ROOT_DIR,
-    os.path.join(ROOT_DIR, 'cosyvoice_original'),
-    os.path.join(ROOT_DIR, 'cosyvoice_original', 'third_party', 'Matcha-TTS')
-]
-
-for path in paths_to_add:
-    if os.path.exists(path) and path not in sys.path:
-        sys.path.insert(0, path)
+cosyvoice_path = os.path.join(ROOT_DIR, 'cosyvoice_original')
+if os.path.exists(cosyvoice_path) and cosyvoice_path not in sys.path:
+    sys.path.insert(0, cosyvoice_path)
 
 from cosyvoice.cli.cosyvoice import CosyVoice, CosyVoice2
 from cosyvoice.utils.file_utils import load_wav

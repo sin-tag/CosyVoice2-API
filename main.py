@@ -6,22 +6,50 @@ Main entry point for the CosyVoice2 API server
 import os
 import sys
 
-# CRITICAL: Set up Python path FIRST before any other imports
+# CRITICAL: Set up Python path FIRST - BULLETPROOF VERSION
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Ensure we're in the right directory (the project root)
+if os.getcwd() != ROOT_DIR:
+    os.chdir(ROOT_DIR)
+
+# Add all necessary paths
 PATHS_TO_ADD = [
     ROOT_DIR,
     os.path.join(ROOT_DIR, 'cosyvoice_original'),
-    os.path.join(ROOT_DIR, 'cosyvoice_original', 'third_party', 'Matcha-TTS')
+    os.path.join(ROOT_DIR, 'cosyvoice_original', 'third_party', 'Matcha-TTS'),
+    os.path.join(ROOT_DIR, 'cosyvoice'),  # Also add cosyvoice if it exists
 ]
 
+# Insert paths at the very beginning
 for path in PATHS_TO_ADD:
-    if os.path.exists(path) and path not in sys.path:
-        sys.path.insert(0, path)
+    if os.path.exists(path):
+        if path in sys.path:
+            sys.path.remove(path)  # Remove if exists
+        sys.path.insert(0, path)  # Add at beginning
 
-# Also set PYTHONPATH environment variable
-current_pythonpath = os.environ.get('PYTHONPATH', '')
-new_pythonpath = os.pathsep.join(PATHS_TO_ADD + ([current_pythonpath] if current_pythonpath else []))
-os.environ['PYTHONPATH'] = new_pythonpath
+# Set PYTHONPATH environment variable
+os.environ['PYTHONPATH'] = os.pathsep.join([p for p in PATHS_TO_ADD if os.path.exists(p)])
+
+# Debug info for troubleshooting
+print(f"DEBUG: Working directory: {os.getcwd()}")
+print(f"DEBUG: Root directory: {ROOT_DIR}")
+print(f"DEBUG: Python path (first 3): {sys.path[:3]}")
+
+# Test critical import immediately
+try:
+    import app.models.voice
+    print("DEBUG: app.models.voice import successful")
+except ImportError as e:
+    print(f"DEBUG: app.models.voice import failed: {e}")
+    # List contents of app directory
+    app_dir = os.path.join(ROOT_DIR, 'app')
+    if os.path.exists(app_dir):
+        print(f"DEBUG: Contents of {app_dir}: {os.listdir(app_dir)}")
+        models_dir = os.path.join(app_dir, 'models')
+        if os.path.exists(models_dir):
+            print(f"DEBUG: Contents of {models_dir}: {os.listdir(models_dir)}")
+    raise
 
 # Now import everything else
 import asyncio
