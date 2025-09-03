@@ -13,7 +13,30 @@ A FastAPI-based REST API for CosyVoice2 voice cloning and text-to-speech synthes
 
 ## Quick Start
 
-### 1. Installation
+### 1. Installation Options
+
+#### Option A: Using Conda (Recommended)
+
+```bash
+# Clone the repository
+git clone https://github.com/sin-tag/CosyVoice2-API.git
+cd CosyVoice2-API
+
+# Create conda environment
+conda create -n cosyvoice2-api python=3.9 -y
+conda activate cosyvoice2-api
+
+# Install PyTorch with CUDA support
+conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia -y
+
+# Install audio libraries
+conda install -c conda-forge librosa soundfile -y
+
+# Install other dependencies
+pip install -r requirements.txt
+```
+
+#### Option B: Using Virtual Environment
 
 ```bash
 # Clone the repository
@@ -28,6 +51,15 @@ chmod +x scripts/setup.sh
 python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
+```
+
+#### Option C: Using Docker
+
+```bash
+# Clone and start with Docker Compose
+git clone https://github.com/sin-tag/CosyVoice2-API.git
+cd CosyVoice2-API
+docker-compose up -d
 ```
 
 ### 2. Configuration
@@ -53,12 +85,31 @@ python scripts/download_model.py
 
 ### 4. Run the Server
 
+#### If using Conda:
 ```bash
-# Development mode
-python main.py
+# Activate conda environment
+conda activate cosyvoice2-api
 
-# Production mode
-uvicorn main:app --host 0.0.0.0 --port 8000
+# Start the server
+python main.py
+```
+
+#### If using Virtual Environment:
+```bash
+# Activate virtual environment
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Start the server
+python main.py
+```
+
+#### Production Mode:
+```bash
+# Using Gunicorn (install first: pip install gunicorn)
+gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
+
+# Or using Uvicorn directly
+uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
 ```
 
 The API will be available at `http://localhost:8000`
@@ -155,6 +206,35 @@ CosyVoice2-API/
 ├── outputs/               # Generated audio files
 └── models/                # CosyVoice model files
 ```
+
+## Detailed Setup Guides
+
+- **[Conda Setup Guide](CONDA_SETUP.md)** - Comprehensive conda-based installation
+- **[Docker Deployment](DEPLOYMENT.md)** - Docker and production deployment
+- **[API Examples](docs/API_EXAMPLES.md)** - Detailed API usage examples
+
+## System Requirements
+
+- **Python**: 3.9+
+- **GPU**: CUDA-compatible GPU recommended (NVIDIA GTX 1060+ or better)
+- **RAM**: 8GB minimum, 16GB+ recommended
+- **Storage**: 10GB+ for models and cache
+- **OS**: Linux (Ubuntu 18.04+), macOS, Windows 10+
+
+## Troubleshooting
+
+### Common Issues
+
+1. **CUDA not available**: Install proper NVIDIA drivers and CUDA toolkit
+2. **Audio processing errors**: Install ffmpeg system package
+3. **Model download fails**: Check internet connection and disk space
+4. **Import errors**: Ensure all dependencies are installed in the correct environment
+
+### Getting Help
+
+- Check the [Conda Setup Guide](CONDA_SETUP.md) for detailed installation steps
+- Review [API Examples](docs/API_EXAMPLES.md) for usage examples
+- Check the [Deployment Guide](DEPLOYMENT.md) for production setup
 
 ## License
 

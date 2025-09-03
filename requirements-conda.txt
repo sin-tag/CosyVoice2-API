@@ -1,0 +1,49 @@
+# CosyVoice2 API - Conda-specific requirements
+# Use this file when setting up with conda environment
+
+# Core FastAPI and web server
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+gunicorn==21.2.0
+
+# Configuration and validation
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# PyTorch (install via conda with CUDA support)
+# conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
+
+# Audio processing (install via conda-forge)
+# conda install -c conda-forge librosa soundfile
+
+# Machine learning and AI
+numpy==1.24.3
+scipy==1.11.4
+transformers==4.36.0
+modelscope==1.9.5
+
+# Utilities
+aiofiles==23.2.1
+python-jose[cryptography]==3.3.0
+httpx==0.25.2
+tqdm==4.66.1
+
+# CosyVoice specific dependencies
+hyperpyyaml==1.2.2
+onnxruntime==1.16.3
+
+# Text processing
+pypinyin==0.50.0
+jieba==0.42.1
+inflect==7.0.0
+eng_to_ipa==0.0.2
+unidecode==1.3.7
+cn2an==0.5.22
+num2words==0.5.13
+
+# Development and testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+black==23.11.0
+flake8==6.1.0
