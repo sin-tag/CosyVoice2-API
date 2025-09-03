@@ -66,6 +66,43 @@ try:
             subprocess.check_call([sys.executable, "-m", "pip", "install", dep])
         print("✓ Dependencies installed")
 
+    # Fix missing app/models directory
+    print("Checking app/models directory...")
+    app_models_dir = os.path.join(current_dir, 'app', 'models')
+    if not os.path.exists(app_models_dir):
+        print("⚠️  app/models directory missing, creating...")
+        try:
+            import subprocess
+            subprocess.check_call([sys.executable, "fix_missing_models.py"])
+            print("✓ app/models directory created")
+        except Exception as e:
+            print(f"❌ Failed to create app/models: {e}")
+            print("Please run: python fix_missing_models.py")
+            sys.exit(1)
+
+    # Fix Matcha-TTS path issue
+    print("Checking Matcha-TTS setup...")
+    matcha_dir = os.path.join(current_dir, 'cosyvoice_original', 'third_party', 'Matcha-TTS')
+    if os.path.exists(matcha_dir):
+        # Add Matcha-TTS to path if not already there
+        if matcha_dir not in sys.path:
+            sys.path.insert(0, matcha_dir)
+
+        # Check if matcha module can be imported
+        try:
+            import matcha.models
+            print("✓ Matcha-TTS import OK")
+        except ImportError as e:
+            print(f"⚠️  Matcha-TTS import issue: {e}")
+            # Try to fix by adding the matcha directory specifically
+            matcha_src_dir = os.path.join(matcha_dir, 'matcha')
+            if os.path.exists(matcha_src_dir) and matcha_src_dir not in sys.path:
+                sys.path.insert(0, matcha_src_dir)
+                print(f"✓ Added Matcha source directory: {matcha_src_dir}")
+    else:
+        print(f"⚠️  Matcha-TTS directory not found: {matcha_dir}")
+        print("This may cause issues with CosyVoice flow matching")
+
     from app.core.config import settings
     print("✓ Config OK")
 

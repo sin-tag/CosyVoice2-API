@@ -28,6 +28,17 @@ for path in PATHS_TO_ADD:
             sys.path.remove(path)  # Remove if exists
         sys.path.insert(0, path)  # Add at beginning
 
+# Special handling for Matcha-TTS matcha module
+matcha_tts_dir = os.path.join(ROOT_DIR, 'cosyvoice_original', 'third_party', 'Matcha-TTS')
+if os.path.exists(matcha_tts_dir):
+    # Also add the matcha source directory specifically
+    matcha_src_dir = os.path.join(matcha_tts_dir, 'matcha')
+    if os.path.exists(matcha_src_dir):
+        if matcha_src_dir in sys.path:
+            sys.path.remove(matcha_src_dir)
+        sys.path.insert(0, matcha_src_dir)
+        print(f"DEBUG: Added Matcha source directory: {matcha_src_dir}")
+
 # Set PYTHONPATH environment variable
 os.environ['PYTHONPATH'] = os.pathsep.join([p for p in PATHS_TO_ADD if os.path.exists(p)])
 
