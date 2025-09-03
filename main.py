@@ -1,78 +1,252 @@
 """
-CosyVoice2 FastAPI Application
+CosyVoice2 FastAPI Application - Auto Setup Version
 Main entry point for the CosyVoice2 API server
 """
 
 import os
 import sys
+import subprocess
 
-# CRITICAL: Set up Python path FIRST - BULLETPROOF VERSION
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+def setup_cosyvoice():
+    """Auto setup CosyVoice if not exists"""
+    ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+    cosyvoice_dir = os.path.join(ROOT_DIR, 'cosyvoice_original')
 
-# Ensure we're in the right directory (the project root)
-if os.getcwd() != ROOT_DIR:
-    os.chdir(ROOT_DIR)
+    if not os.path.exists(cosyvoice_dir):
+        print("🔄 CosyVoice not found, cloning...")
+        try:
+            subprocess.check_call([
+                'git', 'clone',
+                'https://github.com/FunAudioLLM/CosyVoice.git',
+                'cosyvoice_original'
+            ], cwd=ROOT_DIR)
+            print("✓ CosyVoice cloned successfully")
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Failed to clone CosyVoice: {e}")
+            return False
 
-# Auto-detect CosyVoice directory
-cosyvoice_dir = None
-for dirname in ['cosyvoice', 'cosyvoice_original']:
-    test_dir = os.path.join(ROOT_DIR, dirname)
-    if os.path.exists(test_dir):
-        cosyvoice_dir = test_dir
-        print(f"DEBUG: Found CosyVoice directory: {dirname}")
-        break
+    # Update submodules (Matcha-TTS)
+    matcha_dir = os.path.join(cosyvoice_dir, 'third_party', 'Matcha-TTS')
+    if not os.path.exists(matcha_dir) or not os.listdir(matcha_dir):
+        print("🔄 Updating submodules (Matcha-TTS)...")
+        try:
+            subprocess.check_call([
+                'git', 'submodule', 'update', '--init', '--recursive'
+            ], cwd=cosyvoice_dir)
+            print("✓ Submodules updated successfully")
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Failed to update submodules: {e}")
+            return False
 
-# Add all necessary paths
-PATHS_TO_ADD = [ROOT_DIR]
-if cosyvoice_dir:
-    PATHS_TO_ADD.extend([
-        cosyvoice_dir,
-        os.path.join(cosyvoice_dir, 'third_party', 'Matcha-TTS')
-    ])
-else:
-    print("DEBUG: No CosyVoice directory found")
+    return True
 
-# Insert paths at the very beginning
-for path in PATHS_TO_ADD:
-    if os.path.exists(path):
-        if path in sys.path:
-            sys.path.remove(path)  # Remove if exists
-        sys.path.insert(0, path)  # Add at beginning
+def install_dependencies():
+    """Install required dependencies"""
+    print("🔄 Installing dependencies...")
 
-# Special handling for Matcha-TTS matcha module
-if cosyvoice_dir:
-    matcha_tts_dir = os.path.join(cosyvoice_dir, 'third_party', 'Matcha-TTS')
-    if os.path.exists(matcha_tts_dir):
-        # Also add the matcha source directory specifically
-        matcha_src_dir = os.path.join(matcha_tts_dir, 'matcha')
-        if os.path.exists(matcha_src_dir):
-            if matcha_src_dir in sys.path:
-                sys.path.remove(matcha_src_dir)
-            sys.path.insert(0, matcha_src_dir)
-            print(f"DEBUG: Added Matcha source directory: {matcha_src_dir}")
+    # Check Python version
+    if sys.version_info < (3, 10):
+        print(f"⚠️  Python {sys.version_info.major}.{sys.version_info.minor} detected. Python 3.10+ recommended.")
 
-# Set PYTHONPATH environment variable
-os.environ['PYTHONPATH'] = os.pathsep.join([p for p in PATHS_TO_ADD if os.path.exists(p)])
+    deps = [
+        "fastapi>=0.104.0",
+        "uvicorn[standard]>=0.24.0",
+        "python-multipart>=0.0.6",
+        "pydantic>=2.0.0",
+        "pydantic-settings>=2.0.0",
+        "transformers>=4.37.0",
+        "torch>=2.0.0",
+        "torchaudio>=2.0.0",
+        "librosa>=0.10.0",
+        "soundfile>=0.12.0",
+        "numpy>=1.24.0",
+        "scipy>=1.11.0",
+        "openai-whisper>=20231117",
+        "WeTextProcessing>=1.0.3",
+        "modelscope>=1.9.0",
+        "hyperpyyaml>=1.2.0",
+        "onnxruntime>=1.16.0",
+        "pypinyin>=0.50.0",
+        "jieba>=0.42.0",
+        "aiofiles>=23.0.0"
+    ]
 
-# Debug info for troubleshooting
-print(f"DEBUG: Working directory: {os.getcwd()}")
-print(f"DEBUG: Root directory: {ROOT_DIR}")
-print(f"DEBUG: Python path (first 3): {sys.path[:3]}")
+    for dep in deps:
+        try:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", dep],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except subprocess.CalledProcessError:
+            print(f"⚠️  Failed to install {dep}")
 
-# Test critical import immediately
-try:
-    import app.models.voice
-    print("DEBUG: app.models.voice import successful")
-except ImportError as e:
-    print(f"DEBUG: app.models.voice import failed: {e}")
-    # List contents of app directory
-    app_dir = os.path.join(ROOT_DIR, 'app')
-    if os.path.exists(app_dir):
-        print(f"DEBUG: Contents of {app_dir}: {os.listdir(app_dir)}")
-        models_dir = os.path.join(app_dir, 'models')
-        if os.path.exists(models_dir):
-            print(f"DEBUG: Contents of {models_dir}: {os.listdir(models_dir)}")
-    raise
+    print("✓ Dependencies installation completed")
+
+def setup_python_path():
+    """Setup Python path for imports"""
+    ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+    # Ensure we're in the right directory
+    if os.getcwd() != ROOT_DIR:
+        os.chdir(ROOT_DIR)
+
+    # Setup paths
+    paths = [
+        ROOT_DIR,
+        os.path.join(ROOT_DIR, 'cosyvoice_original'),
+        os.path.join(ROOT_DIR, 'cosyvoice_original', 'third_party', 'Matcha-TTS')
+    ]
+
+    # Add Matcha source directory
+    matcha_src = os.path.join(ROOT_DIR, 'cosyvoice_original', 'third_party', 'Matcha-TTS', 'matcha')
+    if os.path.exists(matcha_src):
+        paths.append(matcha_src)
+
+    # Insert paths
+    for path in paths:
+        if os.path.exists(path) and path not in sys.path:
+            sys.path.insert(0, path)
+
+    # Set PYTHONPATH
+    os.environ['PYTHONPATH'] = os.pathsep.join([p for p in paths if os.path.exists(p)])
+
+    return ROOT_DIR
+
+def create_models_if_missing(root_dir):
+    """Create app/models directory if missing"""
+    models_dir = os.path.join(root_dir, 'app', 'models')
+    if not os.path.exists(models_dir):
+        print("🔄 Creating app/models directory...")
+        os.makedirs(models_dir, exist_ok=True)
+
+        # Create __init__.py
+        with open(os.path.join(models_dir, '__init__.py'), 'w') as f:
+            f.write('''# Models package
+from .voice import VoiceType, AudioFormat, VoiceCreate, VoiceUpdate, VoiceInDB, VoiceResponse, VoiceListResponse, VoiceStats
+from .synthesis import SynthesisRequest, SFTSynthesisRequest, ZeroShotSynthesisRequest, CrossLingualSynthesisRequest, InstructSynthesisRequest, SynthesisResponse
+''')
+
+        # Create voice.py
+        with open(os.path.join(models_dir, 'voice.py'), 'w') as f:
+            f.write('''"""Voice models for CosyVoice2 API"""
+from typing import Optional, List
+from datetime import datetime
+from enum import Enum
+from pydantic import BaseModel, Field
+
+class VoiceType(str, Enum):
+    SFT = "sft"
+    ZERO_SHOT = "zero_shot"
+    CROSS_LINGUAL = "cross_lingual"
+    INSTRUCT = "instruct"
+
+class AudioFormat(str, Enum):
+    WAV = "wav"
+    MP3 = "mp3"
+    FLAC = "flac"
+
+class VoiceBase(BaseModel):
+    voice_id: str = Field(..., description="Unique voice identifier")
+    name: str = Field(..., description="Human-readable voice name")
+    description: Optional[str] = Field(None, description="Voice description")
+    voice_type: VoiceType = Field(..., description="Type of voice")
+    language: Optional[str] = Field(None, description="Primary language of the voice")
+
+class VoiceCreate(VoiceBase):
+    prompt_text: Optional[str] = Field(None, description="Text that matches the audio sample")
+    audio_format: AudioFormat = Field(AudioFormat.WAV, description="Audio file format")
+
+class VoiceUpdate(BaseModel):
+    name: Optional[str] = Field(None, description="Human-readable voice name")
+    description: Optional[str] = Field(None, description="Voice description")
+    language: Optional[str] = Field(None, description="Primary language of the voice")
+
+class VoiceInDB(VoiceBase):
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    audio_file_path: Optional[str] = Field(None, description="Path to audio file")
+    prompt_text: Optional[str] = Field(None, description="Text that matches the audio sample")
+    audio_format: AudioFormat = Field(AudioFormat.WAV, description="Audio file format")
+    file_size: Optional[int] = Field(None, description="Audio file size in bytes")
+    duration: Optional[float] = Field(None, description="Audio duration in seconds")
+    sample_rate: Optional[int] = Field(None, description="Audio sample rate")
+    is_active: bool = Field(True, description="Whether the voice is active")
+
+class VoiceResponse(VoiceBase):
+    created_at: datetime
+    updated_at: datetime
+    audio_format: AudioFormat
+    file_size: Optional[int] = None
+    duration: Optional[float] = None
+    sample_rate: Optional[int] = None
+    is_active: bool = True
+
+class VoiceListResponse(BaseModel):
+    voices: List[VoiceResponse]
+    total: int
+    page: int = 1
+    per_page: int = 10
+
+class VoiceStats(BaseModel):
+    total_voices: int = 0
+    active_voices: int = 0
+    voice_types: dict = Field(default_factory=dict)
+    languages: dict = Field(default_factory=dict)
+    total_duration: float = 0.0
+    total_size: int = 0
+''')
+
+        # Create synthesis.py
+        with open(os.path.join(models_dir, 'synthesis.py'), 'w') as f:
+            f.write('''"""Synthesis models for CosyVoice2 API"""
+from typing import Optional
+from pydantic import BaseModel, Field
+from enum import Enum
+from .voice import AudioFormat
+
+class SynthesisMode(str, Enum):
+    SFT = "sft"
+    ZERO_SHOT = "zero_shot"
+    CROSS_LINGUAL = "cross_lingual"
+    INSTRUCT = "instruct"
+
+class SynthesisRequest(BaseModel):
+    text: str = Field(..., description="Text to synthesize", max_length=1000)
+    speed: float = Field(1.0, description="Synthesis speed", ge=0.5, le=2.0)
+    format: AudioFormat = Field(AudioFormat.WAV, description="Output audio format")
+    stream: bool = Field(False, description="Enable streaming synthesis")
+
+class SFTSynthesisRequest(SynthesisRequest):
+    voice_id: str = Field(..., description="Pre-trained voice ID")
+
+class ZeroShotSynthesisRequest(SynthesisRequest):
+    voice_id: Optional[str] = Field(None, description="Cached voice ID (if using cached voice)")
+    prompt_text: Optional[str] = Field(None, description="Text that matches the prompt audio")
+
+class CrossLingualSynthesisRequest(ZeroShotSynthesisRequest):
+    target_language: str = Field(..., description="Target language for synthesis")
+
+class InstructSynthesisRequest(SynthesisRequest):
+    voice_id: str = Field(..., description="Pre-trained voice ID")
+    instruct_text: str = Field(..., description="Natural language instruction for synthesis control")
+
+class SynthesisResponse(BaseModel):
+    task_id: str = Field(..., description="Unique task identifier")
+    status: str = Field(..., description="Synthesis status")
+    audio_url: Optional[str] = Field(None, description="URL to download the generated audio")
+    duration: Optional[float] = Field(None, description="Audio duration in seconds")
+    format: AudioFormat = Field(..., description="Audio format")
+    created_at: str = Field(..., description="Task creation timestamp")
+    completed_at: Optional[str] = Field(None, description="Task completion timestamp")
+    error: Optional[str] = Field(None, description="Error message if synthesis failed")
+''')
+
+        print("✓ app/models directory and files created")
+
+# CRITICAL: Setup everything before any other imports
+print("🚀 CosyVoice2 API - Auto Setup")
+setup_cosyvoice()
+install_dependencies()
+ROOT_DIR = setup_python_path()
+create_models_if_missing(ROOT_DIR)
 
 # Now import everything else
 import asyncio
