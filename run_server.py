@@ -36,27 +36,32 @@ def check_imports():
     """Check if critical imports work"""
     try:
         print("Checking imports...")
-        
+
+        # Ensure path is set up first
+        setup_python_path()
+
         # Test basic imports
         import fastapi
         import uvicorn
         print("✓ FastAPI and Uvicorn imports OK")
-        
+
         # Test app imports
         from app.core.config import settings
         print("✓ Config import OK")
-        
+
         from app.models.voice import VoiceCreate
         print("✓ Voice models import OK")
-        
+
         from app.core.voice_cache import VoiceCache
         print("✓ Voice cache import OK")
-        
+
         print("✓ All critical imports successful")
         return True
-        
+
     except ImportError as e:
         print(f"❌ Import error: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 def main():

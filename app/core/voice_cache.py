@@ -9,16 +9,17 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any
 from pathlib import Path
 
-try:
-    from app.models.voice import VoiceInDB, VoiceCreate, VoiceUpdate, VoiceType, VoiceStats
-    from app.core.config import settings
-except ImportError:
-    # Fallback for relative imports
-    import sys
-    import os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-    from app.models.voice import VoiceInDB, VoiceCreate, VoiceUpdate, VoiceType, VoiceStats
-    from app.core.config import settings
+import sys
+import os
+
+# Ensure the project root is in the path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(os.path.dirname(current_dir))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+from app.models.voice import VoiceInDB, VoiceCreate, VoiceUpdate, VoiceType, VoiceStats
+from app.core.config import settings
 
 
 class VoiceCache:

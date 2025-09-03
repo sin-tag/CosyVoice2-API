@@ -8,12 +8,20 @@ import sys
 
 # CRITICAL: Set up Python path FIRST before any other imports
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-if ROOT_DIR not in sys.path:
-    sys.path.insert(0, ROOT_DIR)
-if f'{ROOT_DIR}/cosyvoice_original' not in sys.path:
-    sys.path.insert(0, f'{ROOT_DIR}/cosyvoice_original')
-if f'{ROOT_DIR}/cosyvoice_original/third_party/Matcha-TTS' not in sys.path:
-    sys.path.insert(0, f'{ROOT_DIR}/cosyvoice_original/third_party/Matcha-TTS')
+PATHS_TO_ADD = [
+    ROOT_DIR,
+    os.path.join(ROOT_DIR, 'cosyvoice_original'),
+    os.path.join(ROOT_DIR, 'cosyvoice_original', 'third_party', 'Matcha-TTS')
+]
+
+for path in PATHS_TO_ADD:
+    if os.path.exists(path) and path not in sys.path:
+        sys.path.insert(0, path)
+
+# Also set PYTHONPATH environment variable
+current_pythonpath = os.environ.get('PYTHONPATH', '')
+new_pythonpath = os.pathsep.join(PATHS_TO_ADD + ([current_pythonpath] if current_pythonpath else []))
+os.environ['PYTHONPATH'] = new_pythonpath
 
 # Now import everything else
 import asyncio

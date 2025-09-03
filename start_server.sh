@@ -60,7 +60,20 @@ fi
 print_status "Testing critical imports..."
 python -c "
 import sys
-sys.path.insert(0, '$SCRIPT_DIR')
+import os
+
+# Setup paths
+script_dir = '$SCRIPT_DIR'
+paths_to_add = [
+    script_dir,
+    os.path.join(script_dir, 'cosyvoice_original'),
+    os.path.join(script_dir, 'cosyvoice_original', 'third_party', 'Matcha-TTS')
+]
+
+for path in paths_to_add:
+    if os.path.exists(path) and path not in sys.path:
+        sys.path.insert(0, path)
+
 try:
     from app.core.config import settings
     print('✓ Config import OK')
@@ -69,6 +82,8 @@ try:
     print('✓ All imports successful')
 except Exception as e:
     print(f'❌ Import error: {e}')
+    import traceback
+    traceback.print_exc()
     sys.exit(1)
 " || {
     print_error "Import test failed"

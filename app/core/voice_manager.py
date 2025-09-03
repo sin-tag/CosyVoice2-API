@@ -12,7 +12,10 @@ from pathlib import Path
 
 # Add CosyVoice to path
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.append(f'{ROOT_DIR}/third_party/Matcha-TTS')
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+if f'{ROOT_DIR}/third_party/Matcha-TTS' not in sys.path:
+    sys.path.insert(0, f'{ROOT_DIR}/third_party/Matcha-TTS')
 
 from cosyvoice.cli.cosyvoice import CosyVoice, CosyVoice2
 from cosyvoice.utils.file_utils import load_wav
