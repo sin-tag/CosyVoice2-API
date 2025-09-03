@@ -10,12 +10,17 @@ import logging
 from typing import Optional, Dict, Any, List, Generator
 from pathlib import Path
 
-# Add CosyVoice to path
+# Add CosyVoice to path - CRITICAL for uvicorn direct usage
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-if ROOT_DIR not in sys.path:
-    sys.path.insert(0, ROOT_DIR)
-if f'{ROOT_DIR}/third_party/Matcha-TTS' not in sys.path:
-    sys.path.insert(0, f'{ROOT_DIR}/third_party/Matcha-TTS')
+paths_to_add = [
+    ROOT_DIR,
+    os.path.join(ROOT_DIR, 'cosyvoice_original'),
+    os.path.join(ROOT_DIR, 'cosyvoice_original', 'third_party', 'Matcha-TTS')
+]
+
+for path in paths_to_add:
+    if os.path.exists(path) and path not in sys.path:
+        sys.path.insert(0, path)
 
 from cosyvoice.cli.cosyvoice import CosyVoice, CosyVoice2
 from cosyvoice.utils.file_utils import load_wav

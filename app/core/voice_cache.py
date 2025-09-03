@@ -12,14 +12,30 @@ from pathlib import Path
 import sys
 import os
 
-# Ensure the project root is in the path
+# Ensure the project root is in the path - CRITICAL for uvicorn direct usage
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(os.path.dirname(current_dir))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from app.models.voice import VoiceInDB, VoiceCreate, VoiceUpdate, VoiceType, VoiceStats
-from app.core.config import settings
+# Also add cosyvoice paths if they exist
+cosyvoice_paths = [
+    os.path.join(project_root, 'cosyvoice_original'),
+    os.path.join(project_root, 'cosyvoice_original', 'third_party', 'Matcha-TTS')
+]
+for path in cosyvoice_paths:
+    if os.path.exists(path) and path not in sys.path:
+        sys.path.insert(0, path)
+
+try:
+    from app.models.voice import VoiceInDB, VoiceCreate, VoiceUpdate, VoiceType, VoiceStats
+    from app.core.config import settings
+except ImportError as e:
+    print(f"Import error in voice_cache.py: {e}")
+    print(f"Current working directory: {os.getcwd()}")
+    print(f"Project root: {project_root}")
+    print(f"Python path: {sys.path[:5]}...")  # Show first 5 paths
+    raise
 
 
 class VoiceCache:

@@ -6,12 +6,32 @@ import os
 from typing import List, Optional
 
 try:
-    # Pydantic v2
+    # Pydantic v2 - try pydantic-settings first
     from pydantic_settings import BaseSettings
     from pydantic import Field
+    PYDANTIC_SETTINGS_AVAILABLE = True
 except ImportError:
-    # Pydantic v1 fallback
-    from pydantic import BaseSettings, Field
+    try:
+        # Install pydantic-settings automatically
+        import subprocess
+        import sys
+        print("Installing pydantic-settings...")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "pydantic-settings>=2.0.0"])
+        from pydantic_settings import BaseSettings
+        from pydantic import Field
+        PYDANTIC_SETTINGS_AVAILABLE = True
+        print("✓ pydantic-settings installed successfully")
+    except Exception:
+        # Last resort - try pydantic v1 style (will likely fail with v2)
+        try:
+            from pydantic import BaseSettings, Field
+            PYDANTIC_SETTINGS_AVAILABLE = False
+            print("⚠️  Using legacy BaseSettings - may not work with Pydantic v2")
+        except ImportError:
+            raise ImportError(
+                "Cannot import BaseSettings. Please install pydantic-settings: "
+                "pip install pydantic-settings>=2.0.0"
+            )
 
 
 class Settings(BaseSettings):
