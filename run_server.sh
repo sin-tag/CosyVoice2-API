@@ -112,9 +112,9 @@ install_dependencies_fallback() {
 
     # Install PyTorch with CUDA 12.1 support
     print_status "Installing PyTorch with CUDA 12.1 support..."
-    pip install torch==2.1.2+cu121 torchaudio==2.1.2+cu121 --extra-index-url https://download.pytorch.org/whl/cu121 || {
+    pip install torch==2.2.2+cu121 torchaudio==2.2.2+cu121 --extra-index-url https://download.pytorch.org/whl/cu121 || {
         print_warning "CUDA version failed, trying CPU version..."
-        pip install torch==2.1.2 torchaudio==2.1.2
+        pip install torch==2.2.2 torchaudio==2.2.2
     }
 
     # Install NumPy with version constraint

@@ -26,10 +26,10 @@ def install_pytorch_cuda():
     success, stdout, stderr = run_command("nvidia-smi", check=False)
     if success:
         print("✓ NVIDIA GPU detected, installing CUDA version")
-        cmd = "pip install torch==2.1.2+cu121 torchaudio==2.1.2+cu121 --extra-index-url https://download.pytorch.org/whl/cu121"
+        cmd = "pip install torch==2.2.2+cu121 torchaudio==2.2.2+cu121 --extra-index-url https://download.pytorch.org/whl/cu121"
     else:
         print("⚠️  No NVIDIA GPU detected, installing CPU version")
-        cmd = "pip install torch==2.1.2 torchaudio==2.1.2"
+        cmd = "pip install torch==2.2.2 torchaudio==2.2.2"
     
     success, stdout, stderr = run_command(cmd)
     if success:

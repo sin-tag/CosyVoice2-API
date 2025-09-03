@@ -11,8 +11,8 @@ pydantic-settings>=2.0.0,<3.0.0
 librosa==0.10.1
 soundfile==0.12.1
 # PyTorch with CUDA 12.1 support
-torch==2.1.2+cu121
-torchaudio==2.1.2+cu121
+torch==2.2.2+cu121
+torchaudio==2.2.2+cu121
 --extra-index-url https://download.pytorch.org/whl/cu121
 
 # Machine learning and AI
