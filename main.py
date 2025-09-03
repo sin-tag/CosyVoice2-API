@@ -48,7 +48,8 @@ def install_dependencies():
     if sys.version_info < (3, 10):
         print(f"⚠️  Python {sys.version_info.major}.{sys.version_info.minor} detected. Python 3.10+ recommended.")
 
-    deps = [
+    # Core dependencies that must be installed
+    core_deps = [
         "fastapi>=0.104.0",
         "uvicorn[standard]>=0.24.0",
         "python-multipart>=0.0.6",
@@ -59,10 +60,9 @@ def install_dependencies():
         "torchaudio>=2.0.0",
         "librosa>=0.10.0",
         "soundfile>=0.12.0",
-        "numpy>=1.24.0",
+        "numpy<2",  # Use compatible numpy version
         "scipy>=1.11.0",
         "openai-whisper>=20231117",
-        "WeTextProcessing>=1.0.3",
         "modelscope>=1.9.0",
         "hyperpyyaml>=1.2.0",
         "onnxruntime>=1.16.0",
@@ -71,7 +71,23 @@ def install_dependencies():
         "aiofiles>=23.0.0"
     ]
 
-    for dep in deps:
+    # Optional dependencies that may fail
+    optional_deps = [
+        "WeTextProcessing>=1.0.3",
+        "pynini",
+        "openfst-python"
+    ]
+
+    # Install core dependencies
+    for dep in core_deps:
+        try:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", dep],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except subprocess.CalledProcessError:
+            print(f"⚠️  Failed to install {dep}")
+
+    # Install optional dependencies (don't fail if they don't work)
+    for dep in optional_deps:
         try:
             subprocess.check_call([sys.executable, "-m", "pip", "install", dep],
                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

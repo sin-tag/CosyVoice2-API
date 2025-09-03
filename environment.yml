@@ -6,10 +6,10 @@ channels:
   - defaults
 dependencies:
   - python=3.10
-  - pytorch
+  - pytorch=2.1.2
   - torchvision
-  - torchaudio
-  - pytorch-cuda=11.8
+  - torchaudio=2.1.2
+  - pytorch-cuda=12.1
   - librosa
   - soundfile
   - numpy
@@ -38,7 +38,9 @@ dependencies:
     - cn2an==0.5.22
     - num2words==0.5.13
     - openai-whisper>=20231117
-    - WeTextProcessing>=1.0.3
+    # - WeTextProcessing>=1.0.3  # Commented out due to compilation issues
+    - pynini  # For text normalization
+    - openfst-python  # OpenFST Python bindings
     # Additional dependencies discovered during setup
     - gradio
     - lightning

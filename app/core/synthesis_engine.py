@@ -41,28 +41,39 @@ class SynthesisEngine:
             model = self.voice_manager._get_active_model()
             if not model:
                 raise ModelNotReadyError("CosyVoice model not ready")
-            
-            # Check if voice exists in pre-trained voices
-            available_voices = await self.voice_manager.get_available_pretrained_voices()
-            if request.voice_id not in available_voices:
-                raise VoiceNotFoundError(f"Pre-trained voice '{request.voice_id}' not found")
-            
+
+            # Check if voice exists in pre-trained voices OR cached voices
+            available_pretrained_voices = await self.voice_manager.get_available_pretrained_voices()
+            cached_voice = await self.voice_manager.get_voice(request.voice_id)
+
+            # Voice must exist either as pretrained or cached
+            if request.voice_id not in available_pretrained_voices and not cached_voice:
+                raise VoiceNotFoundError(f"Voice '{request.voice_id}' not found in pretrained or cached voices")
+
             # Generate unique output filename
             output_filename = f"sft_{uuid.uuid4().hex[:8]}.{request.format.value}"
             output_path = file_manager.get_output_audio_path(output_filename)
-            
+
             # Ensure output directory exists
             file_manager.ensure_directory_exists(os.path.dirname(output_path))
-            
+
             # Perform synthesis
-            synthesis_time = await self._synthesize_with_model(
-                model, "sft", request.text, request.voice_id, 
-                output_path, request.speed, request.stream
-            )
-            
+            if cached_voice:
+                # Use cached voice synthesis
+                synthesis_time = await self._synthesize_with_cached_voice(
+                    model, request.text, request.voice_id,
+                    output_path, request.speed, request.stream
+                )
+            else:
+                # Use pretrained voice synthesis
+                synthesis_time = await self._synthesize_with_model(
+                    model, "sft", request.text, request.voice_id,
+                    output_path, request.speed, request.stream
+                )
+
             # Get audio duration
             duration = await self._get_audio_duration(output_path)
-            
+
             return SynthesisResponse(
                 success=True,
                 message="Synthesis completed successfully",
@@ -72,7 +83,7 @@ class SynthesisEngine:
                 format=request.format,
                 synthesis_time=synthesis_time
             )
-            
+
         except Exception as e:
             logger.error(f"Error in SFT synthesis: {e}")
             raise SynthesisError(f"SFT synthesis failed: {str(e)}")

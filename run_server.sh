@@ -85,54 +85,74 @@ setup_venv() {
 
 # Function to install dependencies
 install_dependencies() {
-    print_status "Installing dependencies..."
-    
+    print_status "Installing dependencies using comprehensive installer..."
+
+    # Use the comprehensive Python installer
+    if [ -f "install_dependencies.py" ]; then
+        python install_dependencies.py
+        if [ $? -eq 0 ]; then
+            print_success "Dependencies installation completed successfully"
+        else
+            print_warning "Comprehensive installer had some issues, trying fallback installation..."
+            install_dependencies_fallback
+        fi
+    else
+        print_warning "Comprehensive installer not found, using fallback installation..."
+        install_dependencies_fallback
+    fi
+}
+
+# Fallback dependency installation
+install_dependencies_fallback() {
+    print_status "Installing dependencies (fallback method)..."
+
     # Install basic dependencies first
     print_status "Installing setuptools and wheel..."
     pip install setuptools wheel
-    
-    # Install PyTorch with compatible versions
-    print_status "Installing PyTorch..."
-    pip install torch==2.2.0 torchaudio==2.2.0
-    
+
+    # Install PyTorch with CUDA 12.1 support
+    print_status "Installing PyTorch with CUDA 12.1 support..."
+    pip install torch==2.1.2+cu121 torchaudio==2.1.2+cu121 --extra-index-url https://download.pytorch.org/whl/cu121 || {
+        print_warning "CUDA version failed, trying CPU version..."
+        pip install torch==2.1.2 torchaudio==2.1.2
+    }
+
     # Install NumPy with version constraint
     print_status "Installing NumPy (compatible version)..."
     pip install "numpy<2"
-    
+
     # Install core dependencies
     print_status "Installing core dependencies..."
     pip install fastapi uvicorn[standard] python-multipart pydantic pydantic-settings
-    
+
     # Install audio processing libraries
     print_status "Installing audio processing libraries..."
     pip install librosa soundfile
-    
+
     # Install ML/AI libraries
     print_status "Installing ML/AI libraries..."
     pip install transformers modelscope
-    
+
     # Install additional discovered dependencies
     print_status "Installing additional dependencies..."
     pip install gradio lightning omegaconf diffusers hydra-core
-    pip install gdown matplotlib wget pyarrow pyworld wetext conformer
-    pip install seaborn wandb tensorboard rich
-    
+    pip install gdown matplotlib pyarrow pyworld wetext conformer
+    pip install seaborn wandb tensorboard rich inflect
+    pip install eng_to_ipa unidecode cn2an num2words openai-whisper
+
     # Install CosyVoice specific dependencies
     print_status "Installing CosyVoice specific dependencies..."
-    pip install hyperpyyaml onnxruntime pypinyin jieba inflect
-    pip install eng_to_ipa unidecode cn2an num2words openai-whisper
-    
+    pip install hyperpyyaml onnxruntime pypinyin jieba
+
+    # Try to install text processing dependencies
+    print_status "Installing text processing dependencies..."
+    pip install pynini openfst-python || print_warning "Some text processing dependencies failed to install"
+
     # Try to install WeTextProcessing (may fail on some systems)
     print_status "Attempting to install WeTextProcessing..."
-    pip install WeTextProcessing>=1.0.3 || print_warning "WeTextProcessing installation failed, but wetext fallback is available"
-    
-    # Install remaining dependencies from requirements.txt
-    if [ -f "requirements.txt" ]; then
-        print_status "Installing remaining dependencies from requirements.txt..."
-        pip install -r requirements.txt || print_warning "Some dependencies from requirements.txt may have failed to install"
-    fi
-    
-    print_success "Dependencies installation completed"
+    pip install WeTextProcessing>=1.0.3 || print_warning "WeTextProcessing installation failed, using wetext fallback instead"
+
+    print_success "Fallback dependencies installation completed"
 }
 
 # Function to setup model directory

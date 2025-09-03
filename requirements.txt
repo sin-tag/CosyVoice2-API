@@ -10,8 +10,10 @@ pydantic-settings>=2.0.0,<3.0.0
 # Audio processing
 librosa==0.10.1
 soundfile==0.12.1
-torchaudio==2.2.0
-torch==2.2.0
+# PyTorch with CUDA 12.1 support
+torch==2.1.2+cu121
+torchaudio==2.1.2+cu121
+--extra-index-url https://download.pytorch.org/whl/cu121
 
 # Machine learning and AI
 numpy<2  # Changed to avoid compatibility issues with compiled modules
@@ -38,7 +40,10 @@ num2words==0.5.13
 
 # Speech processing
 openai-whisper>=20231117
-WeTextProcessing>=1.0.3
+# WeTextProcessing>=1.0.3  # Commented out due to compilation issues
+# Alternative text processing libraries
+pynini  # For text normalization (WeTextProcessing dependency)
+openfst-python  # OpenFST Python bindings
 
 # Additional dependencies discovered during setup
 gradio
