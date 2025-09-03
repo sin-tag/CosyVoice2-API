@@ -8,26 +8,52 @@ A FastAPI-based REST API for CosyVoice2 voice cloning and text-to-speech synthes
 - **Multiple Audio Formats**: Support for MP3, WAV, FLAC, and M4A formats
 - **Voice Cloning**: Zero-shot voice cloning with 3-second audio samples
 - **Cross-lingual Support**: Multi-language voice synthesis
-- **Async Processing**: High-performance async API endpoints
+- **Async Processing**: High-performance async API endpoints with multi-threading
 - **Auto-loading**: Automatic loading of cached voices on startup
+- **Prompt Text Support**: Custom prompt text for better voice reference
+- **Instruct Mode**: Emotional and style control through instruction text
+- **Linux Setup Script**: Automated environment setup for Linux systems
 
 ## Quick Start
 
 ### 🚀 One-Command Setup and Run
 
-The easiest way to get started is using our automated setup script:
+Choose your preferred deployment method:
 
-#### For Linux/macOS:
+#### Option 1: Docker (Recommended)
 ```bash
 # Clone the repository
 git clone https://github.com/sin-tag/CosyVoice2-API.git
 cd CosyVoice2-API
 
-# Run the automated setup and server script
-./run_server.sh
+# Place your CosyVoice2 model in pretrained_models/CosyVoice2-0.5B/
+
+# Build and run with Docker Compose
+docker-compose up --build
+
+# Access API at http://localhost:8013/docs
 ```
 
-#### For Windows:
+#### Option 2: Native Installation
+The easiest way to get started is using our automated setup script:
+
+##### For Linux/macOS:
+```bash
+# Clone the repository
+git clone https://github.com/sin-tag/CosyVoice2-API.git
+cd CosyVoice2-API
+
+# Option 1: Complete environment setup (first time)
+./setup_env.sh
+
+# Option 2: Quick start (after setup)
+./run.sh
+
+# Option 3: Python fast start
+python run_fast.py
+```
+
+##### For Windows:
 ```batch
 # Clone the repository
 git clone https://github.com/sin-tag/CosyVoice2-API.git
@@ -208,18 +234,30 @@ with open("voice_sample.wav", "rb") as f:
 ```python
 import requests
 
-# Zero-shot synthesis
+# Cross-lingual synthesis with cache (with prompt text support)
 data = {
     "text": "Hello, how are you today?",
     "voice_id": "my_voice_001",
+    "prompt_text": "Custom prompt text for better voice reference",  # New feature
+    "instruct_text": "Please speak with a cheerful tone",  # Emotional control
     "speed": 1.0,
     "format": "wav"
 }
-response = requests.post("http://localhost:8000/api/v1/synthesize/zero-shot", json=data)
+response = requests.post("http://localhost:8013/api/v1/cross-lingual/with-cache", json=data)
 
-# Save audio file
-with open("output.wav", "wb") as f:
-    f.write(response.content)
+# Async synthesis (new feature)
+async_data = {
+    "text": "This will be processed in the background",
+    "voice_id": "my_voice_001",
+    "prompt_text": "Reference text",
+    "format": "wav"
+}
+response = requests.post("http://localhost:8013/api/v1/cross-lingual/async", json=async_data)
+task_id = response.json()["task_id"]
+
+# Check async task status
+status_response = requests.get(f"http://localhost:8013/api/v1/cross-lingual/async/{task_id}")
+print(status_response.json())
 ```
 
 ## Project Structure
@@ -283,6 +321,7 @@ For detailed solutions, see **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)**
 
 ### Getting Help
 
+- Check the [Docker Setup Guide](DOCKER.md) for containerized deployment
 - Check the [Conda Setup Guide](CONDA_SETUP.md) for detailed installation steps
 - Review [API Examples](docs/API_EXAMPLES.md) for usage examples
 - Check the [Deployment Guide](DEPLOYMENT.md) for production setup

@@ -14,6 +14,9 @@ from pathlib import Path
 import torch
 import torchaudio
 import soundfile as sf
+import librosa
+from cosyvoice.utils.file_utils import load_wav
+from cosyvoice.utils.common import set_all_random_seed
 
 from app.core.voice_manager import VoiceManager
 from app.models.synthesis import (
@@ -26,6 +29,24 @@ from app.utils.file_utils import file_manager
 from app.utils.audio import audio_processor
 
 logger = logging.getLogger(__name__)
+
+# Audio processing constants
+MAX_VAL = 0.8
+PROMPT_SR = 16000
+
+def postprocess(speech, top_db=60, hop_length=220, win_length=440):
+    """Postprocess audio like in the original CosyVoice webui"""
+    speech, _ = librosa.effects.trim(
+        speech, top_db=top_db,
+        frame_length=win_length,
+        hop_length=hop_length
+    )
+    if speech.abs().max() > MAX_VAL:
+        speech = speech / speech.abs().max() * MAX_VAL
+    # Add silence at the end
+    silence_duration = int(22050 * 0.2)  # Assume 22050 sample rate for now
+    speech = torch.concat([speech, torch.zeros(1, silence_duration)], dim=1)
+    return speech
 
 
 class SynthesisEngine:
@@ -114,7 +135,7 @@ class SynthesisEngine:
                 # Use cached voice directly
                 synthesis_time = await self._synthesize_with_cached_voice(
                     model, request.text, request.voice_id,
-                    output_path, request.speed, request.stream
+                    output_path, request.speed, request.stream, request.prompt_text
                 )
 
             # Get audio duration
@@ -182,10 +203,13 @@ class SynthesisEngine:
         start_time = time.time()
 
         def _sync_synthesis():
-            # Load prompt audio
-            prompt_speech_16k = load_wav(prompt_audio_path, 16000)
+            # Load and postprocess prompt audio like in original webui
+            prompt_speech_16k = postprocess(load_wav(prompt_audio_path, PROMPT_SR))
 
-            # Use zero-shot inference
+            # Set random seed for reproducible results
+            set_all_random_seed(42)
+
+            # Use zero-shot inference (no text_frontend parameter in original)
             synthesis_generator = model.inference_zero_shot(
                 text, prompt_text, prompt_speech_16k, stream=stream, speed=speed
             )
@@ -219,13 +243,22 @@ class SynthesisEngine:
         start_time = time.time()
 
         def _sync_synthesis():
-            # Load prompt audio
-            prompt_speech_16k = load_wav(prompt_audio_path, 16000)
+            # Load and postprocess prompt audio like in original webui
+            prompt_speech_16k = postprocess(load_wav(prompt_audio_path, PROMPT_SR))
 
-            # Use instruct inference (CosyVoice2 instruct2 method)
-            synthesis_generator = model.inference_instruct2(
-                text, instruct_text, prompt_speech_16k, stream=stream, speed=speed
-            )
+            # Set random seed for reproducible results
+            set_all_random_seed(42)
+
+            # Use instruct inference (check if model supports instruct)
+            if hasattr(model, 'instruct') and model.instruct:
+                synthesis_generator = model.inference_instruct(
+                    text, "", instruct_text, stream=stream, speed=speed
+                )
+            else:
+                # Fallback to zero-shot with instruct as prompt text
+                synthesis_generator = model.inference_zero_shot(
+                    text, instruct_text, prompt_speech_16k, stream=stream, speed=speed
+                )
 
             # Collect audio chunks
             audio_chunks = []
@@ -261,13 +294,22 @@ class SynthesisEngine:
             if not voice or not voice.audio_file_path:
                 raise VoiceNotFoundError(f"Cached voice '{voice_id}' audio not found")
 
-            # Load cached voice audio
-            prompt_speech_16k = load_wav(voice.audio_file_path, 16000)
+            # Load and postprocess cached voice audio
+            prompt_speech_16k = postprocess(load_wav(voice.audio_file_path, PROMPT_SR))
+
+            # Set random seed for reproducible results
+            set_all_random_seed(42)
 
             # Use instruct inference with cached voice
-            synthesis_generator = model.inference_instruct2(
-                text, instruct_text, prompt_speech_16k, stream=stream, speed=speed
-            )
+            if hasattr(model, 'instruct') and model.instruct:
+                synthesis_generator = model.inference_instruct(
+                    text, voice_id, instruct_text, stream=stream, speed=speed
+                )
+            else:
+                # Fallback to zero-shot with instruct as prompt text
+                synthesis_generator = model.inference_zero_shot(
+                    text, instruct_text, prompt_speech_16k, stream=stream, speed=speed
+                )
 
             # Collect audio chunks
             audio_chunks = []
@@ -308,21 +350,31 @@ class SynthesisEngine:
         return audio_url
 
     async def _synthesize_with_cached_voice(self, model, text: str, voice_id: str,
-                                          output_path: str, speed: float, stream: bool) -> float:
+                                          output_path: str, speed: float, stream: bool, prompt_text: str = None) -> float:
         """Synthesize with cached voice using SFT method"""
         import time
         start_time = time.time()
 
         def _sync_synthesis():
+            # Set random seed for reproducible results
+            set_all_random_seed(42)
+
             # Check if voice is in spk2info (loaded cached voices)
             if hasattr(model, 'frontend') and voice_id in model.frontend.spk2info:
-                # Use SFT synthesis with cached voice
+                # Use SFT synthesis with cached voice (no text_frontend parameter)
                 synthesis_generator = model.inference_sft(text, voice_id, stream=stream, speed=speed)
             else:
-                # Fallback to zero-shot if not in spk2info
-                synthesis_generator = model.inference_zero_shot(
-                    text, "", None, zero_shot_spk_id=voice_id, stream=stream, speed=speed
-                )
+                # Get cached voice audio for zero-shot
+                voice = self.voice_manager.voice_cache.voices.get(voice_id)
+                if voice and voice.audio_file_path:
+                    prompt_speech_16k = postprocess(load_wav(voice.audio_file_path, PROMPT_SR))
+                    # Use provided prompt_text or fallback to cached voice prompt_text
+                    used_prompt_text = prompt_text if prompt_text else (voice.prompt_text or "")
+                    synthesis_generator = model.inference_zero_shot(
+                        text, used_prompt_text, prompt_speech_16k, stream=stream, speed=speed
+                    )
+                else:
+                    raise VoiceNotFoundError(f"Cached voice '{voice_id}' not found")
 
             # Collect audio chunks
             audio_chunks = []

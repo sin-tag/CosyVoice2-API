@@ -129,9 +129,9 @@ def create_models_if_missing(root_dir):
 
         # Create __init__.py
         with open(os.path.join(models_dir, '__init__.py'), 'w') as f:
-            f.write('''# Models package
+            f.write('''# Models package - 跨语种复刻 (Cross-lingual Voice Cloning)
 from .voice import VoiceType, AudioFormat, VoiceCreate, VoiceUpdate, VoiceInDB, VoiceResponse, VoiceListResponse, VoiceStats
-from .synthesis import SynthesisRequest, SFTSynthesisRequest, ZeroShotSynthesisRequest, CrossLingualSynthesisRequest, InstructSynthesisRequest, SynthesisResponse
+from .synthesis import CrossLingualWithAudioRequest, CrossLingualWithCacheRequest, SynthesisResponse
 ''')
 
         # Create voice.py
@@ -272,6 +272,7 @@ from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.core.voice_manager import VoiceManager
 from app.core.synthesis_engine import SynthesisEngine
+from app.core.async_synthesis_manager import AsyncSynthesisManager
 from app.api.v1.router import api_router
 from app.core.exceptions import setup_exception_handlers
 
@@ -284,12 +285,13 @@ logger = logging.getLogger(__name__)
 
 # Global instances
 voice_manager: VoiceManager = None
+async_synthesis_manager: AsyncSynthesisManager = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager"""
-    global voice_manager
+    global voice_manager, async_synthesis_manager
 
     logger.info("Starting CosyVoice2 API server...")
 
@@ -304,8 +306,16 @@ async def lifespan(app: FastAPI):
         await voice_manager.initialize()
         logger.info("Voice manager initialized successfully")
 
+        # Initialize async synthesis manager
+        logger.info("Initializing async synthesis manager...")
+        synthesis_engine = SynthesisEngine(voice_manager)
+        async_synthesis_manager = AsyncSynthesisManager(synthesis_engine, max_concurrent=4)
+        await async_synthesis_manager.start()
+        logger.info("Async synthesis manager initialized successfully")
+
         # Store in app state for access in routes
         app.state.voice_manager = voice_manager
+        app.state.async_synthesis_manager = async_synthesis_manager
 
         yield
 
@@ -314,6 +324,8 @@ async def lifespan(app: FastAPI):
         raise
     finally:
         logger.info("Shutting down CosyVoice2 API server...")
+        if async_synthesis_manager:
+            await async_synthesis_manager.stop()
         if voice_manager:
             await voice_manager.cleanup()
 

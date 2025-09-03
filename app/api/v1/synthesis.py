@@ -6,16 +6,19 @@ Simplified API focused on cross-lingual voice cloning functionality
 import logging
 import tempfile
 import os
+from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request
 from fastapi.responses import FileResponse
 
 from app.models.synthesis import (
     CrossLingualWithAudioRequest, CrossLingualWithCacheRequest,
+    CrossLingualAsyncRequest, AsyncTaskResponse, AsyncTaskStatusResponse,
     SynthesisResponse, AudioFormat
 )
 from app.core.voice_manager import VoiceManager
 from app.core.synthesis_engine import SynthesisEngine
+from app.core.async_synthesis_manager import AsyncSynthesisManager, TaskStatus
 from app.core.exceptions import (
     SynthesisError, VoiceNotFoundError, ModelNotReadyError
 )
@@ -38,6 +41,14 @@ def get_voice_manager(request: Request) -> VoiceManager:
 def get_synthesis_engine(voice_manager: VoiceManager = Depends(get_voice_manager)) -> SynthesisEngine:
     """Dependency to get synthesis engine"""
     return SynthesisEngine(voice_manager)
+
+
+def get_async_synthesis_manager(request: Request) -> AsyncSynthesisManager:
+    """Dependency to get async synthesis manager from app state"""
+    async_manager = getattr(request.app.state, 'async_synthesis_manager', None)
+    if not async_manager:
+        raise HTTPException(status_code=503, detail="Async synthesis manager not available")
+    return async_manager
 
 
 @router.post("/with-audio", response_model=SynthesisResponse)
@@ -139,3 +150,79 @@ async def get_audio_file(filename: str):
     except Exception as e:
         logger.error(f"Error serving audio file {filename}: {e}")
         raise HTTPException(status_code=500, detail="Error serving audio file")
+
+
+# Async synthesis endpoints
+@router.post("/async", response_model=AsyncTaskResponse)
+async def create_async_synthesis_task(
+    request: CrossLingualAsyncRequest,
+    async_manager: AsyncSynthesisManager = Depends(get_async_synthesis_manager)
+):
+    """创建异步跨语种复刻任务 (Create async cross-lingual synthesis task)"""
+
+    try:
+        result = await async_manager.create_task(request)
+        logger.info(f"Created async synthesis task: {result.task_id}")
+        return result
+    except Exception as e:
+        logger.error(f"Failed to create async task: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create async task: {str(e)}")
+
+
+@router.get("/async/{task_id}", response_model=AsyncTaskStatusResponse)
+async def get_async_task_status(
+    task_id: str,
+    async_manager: AsyncSynthesisManager = Depends(get_async_synthesis_manager)
+):
+    """查询异步任务状态 (Get async task status)"""
+
+    try:
+        result = await async_manager.get_task_status(task_id)
+        return result
+    except Exception as e:
+        logger.error(f"Failed to get task status for {task_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get task status: {str(e)}")
+
+
+@router.get("/async", response_model=dict)
+async def list_async_tasks(
+    async_manager: AsyncSynthesisManager = Depends(get_async_synthesis_manager)
+):
+    """列出所有异步任务 (List all async tasks)"""
+
+    try:
+        tasks = await async_manager.list_tasks()
+        return {
+            "success": True,
+            "total": len(tasks),
+            "tasks": tasks
+        }
+    except Exception as e:
+        logger.error(f"Failed to list tasks: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to list tasks: {str(e)}")
+
+
+@router.delete("/async/{task_id}")
+async def cancel_async_task(
+    task_id: str,
+    async_manager: AsyncSynthesisManager = Depends(get_async_synthesis_manager)
+):
+    """取消异步任务 (Cancel async task)"""
+
+    try:
+        # Mark task as cancelled (can't really cancel running tasks)
+        async with async_manager._lock:
+            if task_id in async_manager.tasks:
+                task = async_manager.tasks[task_id]
+                if task.status == TaskStatus.PENDING:
+                    task.status = TaskStatus.FAILED
+                    task.error_message = "Task cancelled by user"
+                    task.completed_at = datetime.now().isoformat()
+                return {"success": True, "message": f"Task {task_id} cancelled"}
+            else:
+                raise HTTPException(status_code=404, detail="Task not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to cancel task {task_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to cancel task: {str(e)}")
