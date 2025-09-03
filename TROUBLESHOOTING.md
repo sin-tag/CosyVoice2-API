@@ -198,21 +198,39 @@ export PORT=8001
 ```
 ModuleNotFoundError: No module named 'cosyvoice'
 ModuleNotFoundError: No module named 'app'
+ModuleNotFoundError: No module named 'app.models'
 ```
 
 **Solutions:**
+
+#### Option 1: Use the startup scripts (Recommended)
+```bash
+# Use the robust startup script
+./start_server.sh
+
+# Or use the Python launcher
+python run_server.py
+```
+
+#### Option 2: Manual Python path setup
 ```bash
 # Make sure you're in the project directory
 cd /path/to/CosyVoice2-API
 
-# Check Python path
-python -c "import sys; print(sys.path)"
+# Set PYTHONPATH properly
+export PYTHONPATH="$(pwd):$(pwd)/cosyvoice_original:$(pwd)/cosyvoice_original/third_party/Matcha-TTS:$PYTHONPATH"
 
-# Add current directory to Python path
-export PYTHONPATH="${PYTHONPATH}:$(pwd)"
+# Then start the server
+python main.py
+```
 
-# Or run from project root
-python -m main
+#### Option 3: Test imports first
+```bash
+# Run the import test
+python test_imports.py
+
+# If successful, then start server
+python main.py
 ```
 
 ### 10. Environment Issues

@@ -8,7 +8,24 @@ import os
 
 # Add project root to path
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, ROOT_DIR)
+paths_to_add = [
+    ROOT_DIR,
+    os.path.join(ROOT_DIR, 'cosyvoice_original'),
+    os.path.join(ROOT_DIR, 'cosyvoice_original', 'third_party', 'Matcha-TTS')
+]
+
+for path in paths_to_add:
+    if os.path.exists(path) and path not in sys.path:
+        sys.path.insert(0, path)
+
+# Set PYTHONPATH environment variable
+current_pythonpath = os.environ.get('PYTHONPATH', '')
+new_paths = [p for p in paths_to_add if p not in current_pythonpath.split(os.pathsep)]
+if new_paths:
+    if current_pythonpath:
+        os.environ['PYTHONPATH'] = os.pathsep.join(new_paths + [current_pythonpath])
+    else:
+        os.environ['PYTHONPATH'] = os.pathsep.join(new_paths)
 
 def test_imports():
     """Test all critical imports"""

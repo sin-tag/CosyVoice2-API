@@ -5,6 +5,17 @@ Main entry point for the CosyVoice2 API server
 
 import os
 import sys
+
+# CRITICAL: Set up Python path FIRST before any other imports
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+if f'{ROOT_DIR}/cosyvoice_original' not in sys.path:
+    sys.path.insert(0, f'{ROOT_DIR}/cosyvoice_original')
+if f'{ROOT_DIR}/cosyvoice_original/third_party/Matcha-TTS' not in sys.path:
+    sys.path.insert(0, f'{ROOT_DIR}/cosyvoice_original/third_party/Matcha-TTS')
+
+# Now import everything else
 import asyncio
 import logging
 from contextlib import asynccontextmanager
@@ -14,12 +25,6 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-
-# Add the project root to Python path
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, ROOT_DIR)
-sys.path.insert(0, f'{ROOT_DIR}/cosyvoice_original')
-sys.path.insert(0, f'{ROOT_DIR}/cosyvoice_original/third_party/Matcha-TTS')
 
 from app.core.config import settings
 from app.core.voice_manager import VoiceManager

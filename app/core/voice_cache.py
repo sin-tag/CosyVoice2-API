@@ -9,8 +9,16 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any
 from pathlib import Path
 
-from app.models.voice import VoiceInDB, VoiceCreate, VoiceUpdate, VoiceType, VoiceStats
-from app.core.config import settings
+try:
+    from app.models.voice import VoiceInDB, VoiceCreate, VoiceUpdate, VoiceType, VoiceStats
+    from app.core.config import settings
+except ImportError:
+    # Fallback for relative imports
+    import sys
+    import os
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+    from app.models.voice import VoiceInDB, VoiceCreate, VoiceUpdate, VoiceType, VoiceStats
+    from app.core.config import settings
 
 
 class VoiceCache:

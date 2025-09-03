@@ -85,25 +85,31 @@ python scripts/download_model.py
 
 ### 4. Run the Server
 
-#### If using Conda:
+#### Method 1: Using Startup Scripts (Recommended)
 ```bash
-# Activate conda environment
-conda activate cosyvoice2-api
+# Activate your environment first
+conda activate cosyvoice2-api  # or source venv/bin/activate
+
+# Use the robust startup script
+./start_server.sh
+
+# Or use the Python launcher
+python run_server.py
+```
+
+#### Method 2: Direct Python
+```bash
+# Activate environment
+conda activate cosyvoice2-api  # or source venv/bin/activate
+
+# Test imports first (recommended)
+python test_imports.py
 
 # Start the server
 python main.py
 ```
 
-#### If using Virtual Environment:
-```bash
-# Activate virtual environment
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Start the server
-python main.py
-```
-
-#### Production Mode:
+#### Method 3: Production Mode
 ```bash
 # Using Gunicorn (install first: pip install gunicorn)
 gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
