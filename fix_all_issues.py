@@ -11,20 +11,31 @@ import subprocess
 def setup_python_path():
     """Setup comprehensive Python path"""
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    
-    paths = [
-        current_dir,
-        os.path.join(current_dir, 'cosyvoice_original'),
-        os.path.join(current_dir, 'cosyvoice_original', 'third_party', 'Matcha-TTS'),
-        os.path.join(current_dir, 'cosyvoice'),
-    ]
-    
-    # Add Matcha-TTS source directory specifically
-    matcha_tts_dir = os.path.join(current_dir, 'cosyvoice_original', 'third_party', 'Matcha-TTS')
-    if os.path.exists(matcha_tts_dir):
-        matcha_src_dir = os.path.join(matcha_tts_dir, 'matcha')
-        if os.path.exists(matcha_src_dir):
-            paths.append(matcha_src_dir)
+
+    # Auto-detect CosyVoice directory
+    cosyvoice_dir = None
+    for dirname in ['cosyvoice', 'cosyvoice_original']:
+        test_dir = os.path.join(current_dir, dirname)
+        if os.path.exists(test_dir):
+            cosyvoice_dir = test_dir
+            print(f"✓ Found CosyVoice directory: {dirname}")
+            break
+
+    paths = [current_dir]
+    if cosyvoice_dir:
+        paths.extend([
+            cosyvoice_dir,
+            os.path.join(cosyvoice_dir, 'third_party', 'Matcha-TTS')
+        ])
+
+        # Add Matcha-TTS source directory specifically
+        matcha_tts_dir = os.path.join(cosyvoice_dir, 'third_party', 'Matcha-TTS')
+        if os.path.exists(matcha_tts_dir):
+            matcha_src_dir = os.path.join(matcha_tts_dir, 'matcha')
+            if os.path.exists(matcha_src_dir):
+                paths.append(matcha_src_dir)
+    else:
+        print("⚠️  No CosyVoice directory found")
     
     for path in paths:
         if os.path.exists(path) and path not in sys.path:
@@ -118,8 +129,20 @@ def fix_models_directory(current_dir):
 def fix_matcha_tts_imports(current_dir):
     """Fix Matcha-TTS import issues"""
     print("🔍 Checking Matcha-TTS setup...")
-    
-    matcha_tts_dir = os.path.join(current_dir, 'cosyvoice_original', 'third_party', 'Matcha-TTS')
+
+    # Auto-detect CosyVoice directory
+    cosyvoice_dir = None
+    for dirname in ['cosyvoice', 'cosyvoice_original']:
+        test_dir = os.path.join(current_dir, dirname)
+        if os.path.exists(test_dir):
+            cosyvoice_dir = test_dir
+            break
+
+    if not cosyvoice_dir:
+        print("⚠️  No CosyVoice directory found")
+        return False
+
+    matcha_tts_dir = os.path.join(cosyvoice_dir, 'third_party', 'Matcha-TTS')
     if not os.path.exists(matcha_tts_dir):
         print(f"⚠️  Matcha-TTS directory not found: {matcha_tts_dir}")
         return False

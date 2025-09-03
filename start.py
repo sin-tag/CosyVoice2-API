@@ -9,11 +9,25 @@ import sys
 
 # Setup Python path FIRST
 current_dir = os.path.dirname(os.path.abspath(__file__))
-paths = [
-    current_dir,
-    os.path.join(current_dir, 'cosyvoice_original'),
-    os.path.join(current_dir, 'cosyvoice_original', 'third_party', 'Matcha-TTS')
-]
+
+# Auto-detect CosyVoice directory (could be 'cosyvoice' or 'cosyvoice_original')
+cosyvoice_dir = None
+for dirname in ['cosyvoice', 'cosyvoice_original']:
+    test_dir = os.path.join(current_dir, dirname)
+    if os.path.exists(test_dir):
+        cosyvoice_dir = test_dir
+        print(f"✓ Found CosyVoice directory: {dirname}")
+        break
+
+if not cosyvoice_dir:
+    print("⚠️  No CosyVoice directory found (looking for 'cosyvoice' or 'cosyvoice_original')")
+
+paths = [current_dir]
+if cosyvoice_dir:
+    paths.extend([
+        cosyvoice_dir,
+        os.path.join(cosyvoice_dir, 'third_party', 'Matcha-TTS')
+    ])
 
 for path in paths:
     if os.path.exists(path) and path not in sys.path:
@@ -82,26 +96,38 @@ try:
 
     # Fix Matcha-TTS path issue
     print("Checking Matcha-TTS setup...")
-    matcha_dir = os.path.join(current_dir, 'cosyvoice_original', 'third_party', 'Matcha-TTS')
-    if os.path.exists(matcha_dir):
-        # Add Matcha-TTS to path if not already there
-        if matcha_dir not in sys.path:
-            sys.path.insert(0, matcha_dir)
 
-        # Check if matcha module can be imported
-        try:
-            import matcha.models
-            print("✓ Matcha-TTS import OK")
-        except ImportError as e:
-            print(f"⚠️  Matcha-TTS import issue: {e}")
-            # Try to fix by adding the matcha directory specifically
-            matcha_src_dir = os.path.join(matcha_dir, 'matcha')
-            if os.path.exists(matcha_src_dir) and matcha_src_dir not in sys.path:
-                sys.path.insert(0, matcha_src_dir)
-                print(f"✓ Added Matcha source directory: {matcha_src_dir}")
+    # Auto-detect CosyVoice directory again for Matcha-TTS
+    cosyvoice_base = None
+    for dirname in ['cosyvoice', 'cosyvoice_original']:
+        test_dir = os.path.join(current_dir, dirname)
+        if os.path.exists(test_dir):
+            cosyvoice_base = test_dir
+            break
+
+    if cosyvoice_base:
+        matcha_dir = os.path.join(cosyvoice_base, 'third_party', 'Matcha-TTS')
+        if os.path.exists(matcha_dir):
+            # Add Matcha-TTS to path if not already there
+            if matcha_dir not in sys.path:
+                sys.path.insert(0, matcha_dir)
+
+            # Check if matcha module can be imported
+            try:
+                import matcha.models
+                print("✓ Matcha-TTS import OK")
+            except ImportError as e:
+                print(f"⚠️  Matcha-TTS import issue: {e}")
+                # Try to fix by adding the matcha directory specifically
+                matcha_src_dir = os.path.join(matcha_dir, 'matcha')
+                if os.path.exists(matcha_src_dir) and matcha_src_dir not in sys.path:
+                    sys.path.insert(0, matcha_src_dir)
+                    print(f"✓ Added Matcha source directory: {matcha_src_dir}")
+        else:
+            print(f"⚠️  Matcha-TTS directory not found: {matcha_dir}")
+            print("This may cause issues with CosyVoice flow matching")
     else:
-        print(f"⚠️  Matcha-TTS directory not found: {matcha_dir}")
-        print("This may cause issues with CosyVoice flow matching")
+        print("⚠️  No CosyVoice base directory found for Matcha-TTS")
 
     from app.core.config import settings
     print("✓ Config OK")

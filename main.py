@@ -13,13 +13,24 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 if os.getcwd() != ROOT_DIR:
     os.chdir(ROOT_DIR)
 
+# Auto-detect CosyVoice directory
+cosyvoice_dir = None
+for dirname in ['cosyvoice', 'cosyvoice_original']:
+    test_dir = os.path.join(ROOT_DIR, dirname)
+    if os.path.exists(test_dir):
+        cosyvoice_dir = test_dir
+        print(f"DEBUG: Found CosyVoice directory: {dirname}")
+        break
+
 # Add all necessary paths
-PATHS_TO_ADD = [
-    ROOT_DIR,
-    os.path.join(ROOT_DIR, 'cosyvoice_original'),
-    os.path.join(ROOT_DIR, 'cosyvoice_original', 'third_party', 'Matcha-TTS'),
-    os.path.join(ROOT_DIR, 'cosyvoice'),  # Also add cosyvoice if it exists
-]
+PATHS_TO_ADD = [ROOT_DIR]
+if cosyvoice_dir:
+    PATHS_TO_ADD.extend([
+        cosyvoice_dir,
+        os.path.join(cosyvoice_dir, 'third_party', 'Matcha-TTS')
+    ])
+else:
+    print("DEBUG: No CosyVoice directory found")
 
 # Insert paths at the very beginning
 for path in PATHS_TO_ADD:
@@ -29,15 +40,16 @@ for path in PATHS_TO_ADD:
         sys.path.insert(0, path)  # Add at beginning
 
 # Special handling for Matcha-TTS matcha module
-matcha_tts_dir = os.path.join(ROOT_DIR, 'cosyvoice_original', 'third_party', 'Matcha-TTS')
-if os.path.exists(matcha_tts_dir):
-    # Also add the matcha source directory specifically
-    matcha_src_dir = os.path.join(matcha_tts_dir, 'matcha')
-    if os.path.exists(matcha_src_dir):
-        if matcha_src_dir in sys.path:
-            sys.path.remove(matcha_src_dir)
-        sys.path.insert(0, matcha_src_dir)
-        print(f"DEBUG: Added Matcha source directory: {matcha_src_dir}")
+if cosyvoice_dir:
+    matcha_tts_dir = os.path.join(cosyvoice_dir, 'third_party', 'Matcha-TTS')
+    if os.path.exists(matcha_tts_dir):
+        # Also add the matcha source directory specifically
+        matcha_src_dir = os.path.join(matcha_tts_dir, 'matcha')
+        if os.path.exists(matcha_src_dir):
+            if matcha_src_dir in sys.path:
+                sys.path.remove(matcha_src_dir)
+            sys.path.insert(0, matcha_src_dir)
+            print(f"DEBUG: Added Matcha source directory: {matcha_src_dir}")
 
 # Set PYTHONPATH environment variable
 os.environ['PYTHONPATH'] = os.pathsep.join([p for p in PATHS_TO_ADD if os.path.exists(p)])
