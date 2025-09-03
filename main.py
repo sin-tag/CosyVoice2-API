@@ -271,7 +271,6 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.core.voice_manager import VoiceManager
-from app.core.async_synthesis import AsyncSynthesisManager
 from app.core.synthesis_engine import SynthesisEngine
 from app.api.v1.router import api_router
 from app.core.exceptions import setup_exception_handlers
@@ -285,13 +284,12 @@ logger = logging.getLogger(__name__)
 
 # Global instances
 voice_manager: VoiceManager = None
-async_synthesis_manager: AsyncSynthesisManager = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager"""
-    global voice_manager, async_synthesis_manager
+    global voice_manager
 
     logger.info("Starting CosyVoice2 API server...")
 
@@ -306,15 +304,8 @@ async def lifespan(app: FastAPI):
         await voice_manager.initialize()
         logger.info("Voice manager initialized successfully")
 
-        # Initialize synthesis engine and async manager
-        synthesis_engine = SynthesisEngine(voice_manager)
-        async_synthesis_manager = AsyncSynthesisManager(synthesis_engine)
-        await async_synthesis_manager.start()
-        logger.info("Async synthesis manager initialized successfully")
-
         # Store in app state for access in routes
         app.state.voice_manager = voice_manager
-        app.state.async_synthesis_manager = async_synthesis_manager
 
         yield
 
@@ -323,8 +314,6 @@ async def lifespan(app: FastAPI):
         raise
     finally:
         logger.info("Shutting down CosyVoice2 API server...")
-        if async_synthesis_manager:
-            await async_synthesis_manager.stop()
         if voice_manager:
             await voice_manager.cleanup()
 
@@ -333,9 +322,9 @@ def create_app() -> FastAPI:
     """Create and configure FastAPI application"""
     
     app = FastAPI(
-        title="CosyVoice2 API",
-        description="FastAPI server for CosyVoice2 voice cloning and synthesis",
-        version="1.0.0",
+        title="CosyVoice2 跨语种复刻 API",
+        description="跨语种复刻 API - Cross-lingual Voice Cloning with CosyVoice2-0.5B",
+        version="2.0.0",
         docs_url="/docs",
         redoc_url="/redoc",
         lifespan=lifespan
@@ -359,9 +348,15 @@ def create_app() -> FastAPI:
     @app.get("/")
     async def root():
         return {
-            "message": "CosyVoice2 API Server",
-            "version": "1.0.0",
-            "docs": "/docs"
+            "message": "CosyVoice2 跨语种复刻 API Server",
+            "description": "Cross-lingual Voice Cloning with CosyVoice2-0.5B",
+            "version": "2.0.0",
+            "docs": "/docs",
+            "endpoints": {
+                "voice_management": "/api/v1/voices/",
+                "cross_lingual_with_audio": "/api/v1/cross-lingual/with-audio",
+                "cross_lingual_with_cache": "/api/v1/cross-lingual/with-cache"
+            }
         }
     
     @app.get("/health")
@@ -370,7 +365,7 @@ def create_app() -> FastAPI:
         return {
             "status": "healthy",
             "voice_manager_ready": voice_manager is not None and voice_manager.is_ready(),
-            "async_synthesis_ready": async_synthesis_manager is not None
+            "api_mode": "跨语种复刻 (Cross-lingual Voice Cloning)"
         }
     
     return app
