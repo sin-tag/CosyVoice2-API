@@ -80,17 +80,20 @@ def fix_pydantic_dependencies():
 def fix_fastapi_dependencies():
     """Fix FastAPI and related dependencies"""
     print_status("Fixing FastAPI dependencies...", "INFO")
-    
+
     commands = [
         "pip install 'fastapi>=0.104.0,<1.0.0'",
         "pip install 'uvicorn[standard]>=0.24.0,<1.0.0'",
         "pip install 'python-multipart>=0.0.6,<1.0.0'",
+        "pip install 'transformers>=4.37.0,<5.0.0'",
+        "pip install 'openai-whisper>=20231117'",
+        "pip install 'WeTextProcessing>=1.0.3'",
     ]
-    
+
     for command in commands:
         if not run_command(command):
             return False
-    
+
     return True
 
 def fix_audio_dependencies():

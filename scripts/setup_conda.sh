@@ -115,11 +115,15 @@ pip install "fastapi>=0.104.0,<1.0.0" "uvicorn[standard]>=0.24.0,<1.0.0" "python
 pip install "pydantic>=2.0.0,<3.0.0" "pydantic-settings>=2.0.0,<3.0.0"
 pip install aiofiles "python-jose[cryptography]" httpx
 pip install tqdm hyperpyyaml onnxruntime
-pip install modelscope transformers
+pip install modelscope "transformers>=4.37.0,<5.0.0"
 
 # Install text processing dependencies
 print_status "Installing text processing libraries..."
 pip install pypinyin jieba inflect eng_to_ipa unidecode cn2an num2words
+
+# Install speech processing dependencies
+print_status "Installing speech processing libraries..."
+pip install "openai-whisper>=20231117" "WeTextProcessing>=1.0.3"
 
 # Install development dependencies
 print_status "Installing development dependencies..."

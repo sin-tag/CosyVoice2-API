@@ -30,14 +30,41 @@ print(f"Python paths added: {len(paths)}")
 try:
     print("Testing imports...")
 
-    # Check pydantic-settings first
+    # Check and install missing dependencies
+    missing_deps = []
+
     try:
         from pydantic_settings import BaseSettings
     except ImportError:
-        print("⚠️  pydantic-settings not found, installing...")
+        missing_deps.append("pydantic-settings>=2.0.0")
+
+    try:
+        import whisper
+    except ImportError:
+        missing_deps.append("openai-whisper>=20231117")
+
+    try:
+        import WeTextProcessing
+    except ImportError:
+        missing_deps.append("WeTextProcessing>=1.0.3")
+
+    # Check transformers version for Qwen2ForCausalLM
+    try:
+        from transformers import Qwen2ForCausalLM
+    except ImportError:
+        try:
+            import transformers
+            print(f"⚠️  transformers version {transformers.__version__} doesn't have Qwen2ForCausalLM")
+            missing_deps.append("transformers>=4.37.0")
+        except ImportError:
+            missing_deps.append("transformers>=4.37.0")
+
+    if missing_deps:
+        print(f"⚠️  Installing missing dependencies: {', '.join(missing_deps)}")
         import subprocess
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "pydantic-settings>=2.0.0"])
-        print("✓ pydantic-settings installed")
+        for dep in missing_deps:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", dep])
+        print("✓ Dependencies installed")
 
     from app.core.config import settings
     print("✓ Config OK")
