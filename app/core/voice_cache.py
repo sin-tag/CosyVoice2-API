@@ -50,7 +50,21 @@ class VoiceCache:
                         voice_data['created_at'] = datetime.fromisoformat(voice_data['created_at'])
                     if 'updated_at' in voice_data:
                         voice_data['updated_at'] = datetime.fromisoformat(voice_data['updated_at'])
-                    
+
+                    # Handle model_data conversion back to tensors
+                    if 'model_data' in voice_data and voice_data['model_data']:
+                        import torch
+                        import numpy as np
+                        model_data = voice_data['model_data']
+                        tensor_model_data = {}
+                        for key, value in model_data.items():
+                            if isinstance(value, list):
+                                # Convert list back to tensor
+                                tensor_model_data[key] = torch.tensor(np.array(value))
+                            else:
+                                tensor_model_data[key] = value
+                        voice_data['model_data'] = tensor_model_data
+
                     voice = VoiceInDB(**voice_data)
                     self.voices[voice_id] = voice
                 except Exception as e:
@@ -73,6 +87,23 @@ class VoiceCache:
                     voice_dict['created_at'] = voice_dict['created_at'].isoformat()
                 if 'updated_at' in voice_dict:
                     voice_dict['updated_at'] = voice_dict['updated_at'].isoformat()
+
+                # Handle model_data with tensors
+                if 'model_data' in voice_dict and voice_dict['model_data']:
+                    model_data = voice_dict['model_data']
+                    serializable_model_data = {}
+                    for key, value in model_data.items():
+                        if hasattr(value, 'cpu') and hasattr(value, 'numpy'):
+                            # Convert PyTorch tensor to list
+                            serializable_model_data[key] = value.cpu().numpy().tolist()
+                        elif hasattr(value, 'tolist'):
+                            # Convert numpy array to list
+                            serializable_model_data[key] = value.tolist()
+                        else:
+                            # Keep as is for other types
+                            serializable_model_data[key] = value
+                    voice_dict['model_data'] = serializable_model_data
+
                 data[voice_id] = voice_dict
             
             # Write to temporary file first, then rename for atomic operation
@@ -143,12 +174,24 @@ class VoiceCache:
             voice = self.voices.get(voice_id)
             if not voice:
                 return None
-            
+
             # Update fields
             update_data = voice_update.dict(exclude_unset=True)
             for field, value in update_data.items():
                 setattr(voice, field, value)
-            
+
+            voice.updated_at = datetime.utcnow()
+            await self._save_to_disk()
+            return voice
+
+    async def update_voice_model_data(self, voice_id: str, model_data: Dict[str, Any]) -> Optional[VoiceInDB]:
+        """Update a voice's model data"""
+        async with self._lock:
+            voice = self.voices.get(voice_id)
+            if not voice:
+                return None
+
+            voice.model_data = model_data
             voice.updated_at = datetime.utcnow()
             await self._save_to_disk()
             return voice

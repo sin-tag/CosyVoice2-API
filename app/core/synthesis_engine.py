@@ -280,32 +280,41 @@ class SynthesisEngine:
 
     async def _synthesize_with_cached_voice(self, model, text: str, voice_id: str,
                                           output_path: str, speed: float, stream: bool) -> float:
-        """Synthesize with cached voice"""
+        """Synthesize with cached voice using SFT method"""
         import time
         start_time = time.time()
 
+        def _sync_synthesis():
+            # Check if voice is in spk2info (loaded cached voices)
+            if hasattr(model, 'frontend') and voice_id in model.frontend.spk2info:
+                # Use SFT synthesis with cached voice
+                synthesis_generator = model.inference_sft(text, voice_id, stream=stream, speed=speed)
+            else:
+                # Fallback to zero-shot if not in spk2info
+                synthesis_generator = model.inference_zero_shot(
+                    text, "", None, zero_shot_spk_id=voice_id, stream=stream, speed=speed
+                )
+
+            # Collect audio chunks
+            audio_chunks = []
+            for model_output in synthesis_generator:
+                if 'tts_speech' in model_output:
+                    audio_chunks.append(model_output['tts_speech'])
+
+            if not audio_chunks:
+                raise SynthesisError("No audio generated")
+
+            # Concatenate audio chunks
+            final_audio = torch.cat(audio_chunks, dim=1)
+
+            # Save audio
+            torchaudio.save(output_path, final_audio, model.sample_rate)
+
+            return time.time() - start_time
+
+        # Run synthesis in thread pool to avoid blocking
         loop = asyncio.get_event_loop()
-
-        # Use zero-shot inference with cached voice
-        synthesis_generator = await loop.run_in_executor(
-            None, lambda: model.inference_zero_shot(
-                text, "", None, zero_shot_spk_id=voice_id, stream=stream, speed=speed
-            )
-        )
-
-        # Collect and save audio
-        audio_chunks = []
-        for model_output in synthesis_generator:
-            if 'tts_speech' in model_output:
-                audio_chunks.append(model_output['tts_speech'])
-
-        if not audio_chunks:
-            raise SynthesisError("No audio generated")
-
-        final_audio = torch.cat(audio_chunks, dim=1)
-        torchaudio.save(output_path, final_audio, model.sample_rate)
-
-        return time.time() - start_time
+        return await loop.run_in_executor(None, _sync_synthesis)
 
     async def _synthesize_with_prompt_audio(self, model, text: str, prompt_text: str,
                                           prompt_audio: bytes, output_path: str,

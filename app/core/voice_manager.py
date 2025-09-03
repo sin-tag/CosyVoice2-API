@@ -114,19 +114,36 @@ class VoiceManager:
         """Load cached voices into the model"""
         try:
             voices, _ = await self.voice_cache.list_voices()
-            
+
             for voice in voices:
-                if voice.voice_type in [VoiceType.ZERO_SHOT, VoiceType.CROSS_LINGUAL]:
-                    if voice.model_data and voice.audio_file_path:
-                        try:
-                            # Add voice to model's speaker info
+                # Load all cached voices that have model data, regardless of type
+                if voice.model_data and voice.audio_file_path:
+                    try:
+                        # Add voice to model's speaker info
+                        model = self._get_active_model()
+                        if model and hasattr(model, 'frontend'):
+                            model.frontend.spk2info[voice.voice_id] = voice.model_data
+                            logger.info(f"Loaded cached voice: {voice.voice_id} ({voice.voice_type})")
+                    except Exception as e:
+                        logger.warning(f"Failed to load cached voice {voice.voice_id}: {e}")
+                elif voice.voice_type == VoiceType.SFT and voice.audio_file_path:
+                    # For SFT voices without model data, generate it
+                    try:
+                        model_data = await self._generate_voice_model_data(
+                            voice.audio_file_path, voice.prompt_text or ""
+                        )
+                        if model_data:
+                            # Update the voice with model data
+                            await self.voice_cache.update_voice_model_data(voice.voice_id, model_data)
+
+                            # Add to model
                             model = self._get_active_model()
                             if model and hasattr(model, 'frontend'):
-                                model.frontend.spk2info[voice.voice_id] = voice.model_data
-                                logger.info(f"Loaded cached voice: {voice.voice_id}")
-                        except Exception as e:
-                            logger.warning(f"Failed to load cached voice {voice.voice_id}: {e}")
-                            
+                                model.frontend.spk2info[voice.voice_id] = model_data
+                                logger.info(f"Generated and loaded cached voice: {voice.voice_id} (SFT)")
+                    except Exception as e:
+                        logger.warning(f"Failed to generate model data for SFT voice {voice.voice_id}: {e}")
+
         except Exception as e:
             logger.error(f"Error loading cached voices: {e}")
     
@@ -186,9 +203,9 @@ class VoiceManager:
             # Clean up temp file
             file_manager.delete_file(temp_file)
             
-            # Generate model data for zero-shot voices
+            # Generate model data for voices that need it
             model_data = None
-            if voice_create.voice_type in [VoiceType.ZERO_SHOT, VoiceType.CROSS_LINGUAL]:
+            if voice_create.voice_type in [VoiceType.ZERO_SHOT, VoiceType.CROSS_LINGUAL, VoiceType.SFT]:
                 model_data = await self._generate_voice_model_data(
                     target_path, voice_create.prompt_text or ""
                 )
@@ -203,8 +220,8 @@ class VoiceManager:
                 sample_rate=sample_rate
             )
             
-            # Add to active model if it's a zero-shot voice
-            if model_data and voice_create.voice_type in [VoiceType.ZERO_SHOT, VoiceType.CROSS_LINGUAL]:
+            # Add to active model if it has model data
+            if model_data and voice_create.voice_type in [VoiceType.ZERO_SHOT, VoiceType.CROSS_LINGUAL, VoiceType.SFT]:
                 model = self._get_active_model()
                 if model and hasattr(model, 'frontend'):
                     model.frontend.spk2info[voice_create.voice_id] = model_data

@@ -1,0 +1,4 @@
+Requirement already satisfied: hyperpyyaml in e:\sample\cosyvoice2-api\venv\lib\site-packages (1.2.2)
+Requirement already satisfied: pyyaml>=5.1 in e:\sample\cosyvoice2-api\venv\lib\site-packages (from hyperpyyaml) (6.0.2)
+Requirement already satisfied: ruamel.yaml>=0.17.28 in e:\sample\cosyvoice2-api\venv\lib\site-packages (from hyperpyyaml) (0.18.15)
+Requirement already satisfied: ruamel.yaml.clib>=0.2.7 in e:\sample\cosyvoice2-api\venv\lib\site-packages (from ruamel.yaml>=0.17.28->hyperpyyaml) (0.2.12)
