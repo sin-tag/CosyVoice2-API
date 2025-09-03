@@ -239,26 +239,36 @@ class VoiceManager:
             model = self._get_active_model()
             if not model or not hasattr(model, 'frontend'):
                 return None
-            
+
             # Load audio
             loop = asyncio.get_event_loop()
             prompt_speech_16k = await loop.run_in_executor(
                 None, load_wav, audio_path, 16000
             )
-            
-            # Generate model input
+
+            # Generate model input using zero-shot method
             model_input = model.frontend.frontend_zero_shot(
                 '', prompt_text, prompt_speech_16k, model.sample_rate, ''
             )
-            
+
             # Remove text-related fields to get speaker embedding
             if 'text' in model_input:
                 del model_input['text']
             if 'text_len' in model_input:
                 del model_input['text_len']
-            
+
+            # For SFT voices, we need to extract just the embedding
+            # The frontend_sft method expects spk2info[spk_id]['embedding']
+            if 'llm_embedding' in model_input:
+                # Create SFT-compatible structure
+                sft_model_data = {
+                    'embedding': model_input['llm_embedding']
+                }
+                return sft_model_data
+
+            # For zero-shot/cross-lingual voices, return the full model_input
             return model_input
-            
+
         except Exception as e:
             logger.error(f"Error generating voice model data: {e}")
             return None
