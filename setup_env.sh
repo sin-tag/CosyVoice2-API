@@ -204,11 +204,11 @@ source venv/bin/activate
 
 # Start server
 echo -e "${GREEN}✓ Environment activated${NC}"
-echo -e "${BLUE}🌐 Server will be available at: http://localhost:8013${NC}"
-echo -e "${BLUE}📚 API Documentation: http://localhost:8013/docs${NC}"
+echo -e "${BLUE}🌐 Server will be available at: http://localhost:8012${NC}"
+echo -e "${BLUE}📚 API Documentation: http://localhost:8012/docs${NC}"
 echo ""
 
-uvicorn main:app --host 0.0.0.0 --port 8013 --workers 1
+uvicorn main:app --host 0.0.0.0 --port 8012 --workers 1
 EOF
 
     chmod +x run.sh
@@ -236,7 +236,7 @@ main() {
     echo -e "${GREEN}Next steps:${NC}"
     echo -e "  1. Place your CosyVoice2 model in: ${BLUE}pretrained_models/CosyVoice2-0.5B${NC}"
     echo -e "  2. Start the server: ${BLUE}./run.sh${NC}"
-    echo -e "  3. Access API docs: ${BLUE}http://localhost:8013/docs${NC}"
+    echo -e "  3. Access API docs: ${BLUE}http://localhost:8012/docs${NC}"
     echo ""
     echo -e "${YELLOW}Note:${NC} Make sure to download the CosyVoice2 model before starting the server"
     echo ""

@@ -102,11 +102,11 @@ RUN mkdir -p outputs voice_cache/audio voice_cache/metadata logs pretrained_mode
 RUN chmod +x setup_env.sh run_fast.py
 
 # Expose port
-EXPOSE 8013
+EXPOSE 8012
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8013/health || exit 1
+    CMD curl -f http://localhost:8012/health || exit 1
 
 # Default command
 CMD ["python", "run_fast.py"]

@@ -71,7 +71,6 @@ ehthumbs.db
 Thumbs.db
 
 # Application specific
-models/
 voice_cache/
 outputs/
 logs/

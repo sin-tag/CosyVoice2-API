@@ -7,7 +7,7 @@ services:
       dockerfile: Dockerfile
     container_name: cosyvoice2-api
     ports:
-      - "8013:8013"
+      - "8012:8012"
     volumes:
       # Mount model directory (you need to place your models here)
       - ./pretrained_models:/app/pretrained_models
@@ -31,7 +31,7 @@ services:
               capabilities: [gpu]
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8013/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8012/health"]
       interval: 30s
       timeout: 30s
       retries: 3

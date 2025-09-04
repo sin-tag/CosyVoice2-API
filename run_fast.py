@@ -25,8 +25,8 @@ def main():
         sys.exit(1)
     
     # Start server directly
-    print("🌐 Server will be available at: http://localhost:8013")
-    print("📚 API Documentation: http://localhost:8013/docs")
+    print("🌐 Server will be available at: http://localhost:8012")
+    print("📚 API Documentation: http://localhost:8012/docs")
     print("🔄 Starting server...")
     print("")
     
@@ -36,7 +36,7 @@ def main():
             sys.executable, "-m", "uvicorn", 
             "main:app", 
             "--host", "0.0.0.0", 
-            "--port", "8013", 
+            "--port", "8012", 
             "--workers", "1"
         ]
         

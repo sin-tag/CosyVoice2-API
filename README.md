@@ -31,7 +31,7 @@ cd CosyVoice2-API
 # Build and run with Docker Compose
 docker-compose up --build
 
-# Access API at http://localhost:8013/docs
+# Access API at http://localhost:8012/docs
 ```
 
 #### Option 2: Native Installation
@@ -243,7 +243,7 @@ data = {
     "speed": 1.0,
     "format": "wav"
 }
-response = requests.post("http://localhost:8013/api/v1/cross-lingual/with-cache", json=data)
+response = requests.post("http://localhost:8012/api/v1/cross-lingual/with-cache", json=data)
 
 # Async synthesis (new feature)
 async_data = {
@@ -252,11 +252,11 @@ async_data = {
     "prompt_text": "Reference text",
     "format": "wav"
 }
-response = requests.post("http://localhost:8013/api/v1/cross-lingual/async", json=async_data)
+response = requests.post("http://localhost:8012/api/v1/cross-lingual/async", json=async_data)
 task_id = response.json()["task_id"]
 
 # Check async task status
-status_response = requests.get(f"http://localhost:8013/api/v1/cross-lingual/async/{task_id}")
+status_response = requests.get(f"http://localhost:8012/api/v1/cross-lingual/async/{task_id}")
 print(status_response.json())
 ```
 

@@ -36,9 +36,9 @@ docker-compose up -d --build
 ```
 
 ### 4. Access the API
-- **API Documentation**: http://localhost:8013/docs
-- **Health Check**: http://localhost:8013/health
-- **API Base URL**: http://localhost:8013/api/v1
+- **API Documentation**: http://localhost:8012/docs
+- **Health Check**: http://localhost:8012/health
+- **API Base URL**: http://localhost:8012/api/v1
 
 ## Manual Docker Commands
 
@@ -52,7 +52,7 @@ docker build -t cosyvoice2-api .
 docker run -d \
   --name cosyvoice2-api \
   --gpus all \
-  -p 8013:8013 \
+  -p 8012:8012 \
   -v ./pretrained_models:/app/pretrained_models \
   -v ./voice_cache:/app/voice_cache \
   -v ./outputs:/app/outputs \
