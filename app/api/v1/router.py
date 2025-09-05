@@ -5,7 +5,7 @@ Simplified API focused on cross-lingual voice cloning functionality
 
 from fastapi import APIRouter
 
-from app.api.v1 import voices, synthesis
+from app.api.v1 import voices, synthesis, tasks
 
 # Create main API router
 api_router = APIRouter()
@@ -13,3 +13,4 @@ api_router = APIRouter()
 # Include sub-routers
 api_router.include_router(voices.router)  # Voice management (upload, list, delete)
 api_router.include_router(synthesis.router)  # Cross-lingual synthesis
+api_router.include_router(tasks.router)  # Task-based synthesis

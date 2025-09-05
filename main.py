@@ -236,6 +236,7 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
 from app.core.voice_manager import VoiceManager
@@ -291,6 +292,11 @@ async def lifespan(app: FastAPI):
         await async_synthesis_manager.start()
         logger.info("Async synthesis manager initialized for unlimited parallel processing")
 
+        # Set dependencies for task-based API
+        from app.dependencies import set_synthesis_engine, set_voice_manager
+        set_synthesis_engine(synthesis_engine)
+        set_voice_manager(voice_manager)
+
         # Store in app state for access in routes
         app.state.voice_manager = voice_manager
         app.state.async_synthesis_manager = async_synthesis_manager
@@ -334,7 +340,10 @@ def create_app() -> FastAPI:
     
     # Include API routes
     app.include_router(api_router, prefix="/api/v1")
-    
+
+    # Mount static files for audio serving
+    app.mount("/api/v1/audio", StaticFiles(directory="outputs"), name="audio")
+
     @app.get("/")
     async def root():
         return {
