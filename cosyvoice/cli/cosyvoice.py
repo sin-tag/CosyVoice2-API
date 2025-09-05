@@ -30,8 +30,18 @@ class CosyVoice:
         self.instruct = True if '-Instruct' in model_dir else False
         self.model_dir = model_dir
         self.fp16 = fp16
+
+        # Check if model_dir exists locally
         if not os.path.exists(model_dir):
-            model_dir = snapshot_download(model_dir)
+            # Only try to download if model_dir looks like a valid HuggingFace repo ID
+            if model_dir and '/' in model_dir and not model_dir.startswith('./') and not model_dir.startswith('/'):
+                try:
+                    model_dir = snapshot_download(model_dir)
+                except Exception as e:
+                    raise ValueError(f"Model directory '{self.model_dir}' not found locally and failed to download: {e}")
+            else:
+                raise ValueError(f"Model directory not found: {model_dir}")
+
         hyper_yaml_path = '{}/cosyvoice.yaml'.format(model_dir)
         if not os.path.exists(hyper_yaml_path):
             raise ValueError('{} not found!'.format(hyper_yaml_path))
@@ -145,13 +155,29 @@ class CosyVoice2(CosyVoice):
         self.instruct = True if '-Instruct' in model_dir else False
         self.model_dir = model_dir
         self.fp16 = fp16
+
+        # Check if model_dir exists locally
         if not os.path.exists(model_dir):
-            model_dir = snapshot_download(model_dir)
+            # Only try to download if model_dir looks like a valid HuggingFace repo ID
+            if model_dir and '/' in model_dir and not model_dir.startswith('./') and not model_dir.startswith('/'):
+                try:
+                    model_dir = snapshot_download(model_dir)
+                except Exception as e:
+                    raise ValueError(f"Model directory '{self.model_dir}' not found locally and failed to download: {e}")
+            else:
+                raise ValueError(f"Model directory not found: {model_dir}")
+
         hyper_yaml_path = '{}/cosyvoice2.yaml'.format(model_dir)
         if not os.path.exists(hyper_yaml_path):
             raise ValueError('{} not found!'.format(hyper_yaml_path))
         with open(hyper_yaml_path, 'r') as f:
-            configs = load_hyperpyyaml(f, overrides={'qwen_pretrain_path': os.path.join(model_dir, 'CosyVoice-BlankEN')})
+            qwen_path = os.path.join(model_dir, 'CosyVoice-BlankEN')
+            print(f"Setting qwen_pretrain_path to: {qwen_path}")
+            configs = load_hyperpyyaml(f, overrides={'qwen_pretrain_path': qwen_path})
+            # Ensure the override worked
+            if 'llm' in configs and hasattr(configs['llm'], 'pretrain_path'):
+                configs['llm'].pretrain_path = qwen_path
+                print(f"Manually set llm.pretrain_path to: {qwen_path}")
         assert get_model_type(configs) == CosyVoice2Model, 'do not use {} for CosyVoice2 initialization!'.format(model_dir)
         self.frontend = CosyVoiceFrontEnd(configs['get_tokenizer'],
                                           configs['feat_extractor'],

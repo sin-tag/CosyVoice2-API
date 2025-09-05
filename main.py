@@ -40,61 +40,26 @@ def setup_cosyvoice():
 
     return True
 
-def install_dependencies():
-    """Install required dependencies"""
-    print("🔄 Installing dependencies...")
+def check_torch_cuda():
+    """Check torch and CUDA availability"""
+    print("� Checking PyTorch and CUDA...")
 
-    # Check Python version
-    if sys.version_info < (3, 10):
-        print(f"⚠️  Python {sys.version_info.major}.{sys.version_info.minor} detected. Python 3.10+ recommended.")
+    try:
+        import torch
+        print(f"✓ PyTorch version: {torch.__version__}")
 
-    # Core dependencies that must be installed
-    core_deps = [
-        "fastapi>=0.104.0",
-        "uvicorn[standard]>=0.24.0",
-        "python-multipart>=0.0.6",
-        "pydantic>=2.0.0",
-        "pydantic-settings>=2.0.0",
-        "transformers>=4.37.0",
-        "torch>=2.0.0",
-        "torchaudio>=2.0.0",
-        "librosa>=0.10.0",
-        "soundfile>=0.12.0",
-        "numpy<2",  # Use compatible numpy version
-        "scipy>=1.11.0",
-        "openai-whisper>=20231117",
-        "modelscope>=1.9.0",
-        "hyperpyyaml>=1.2.0",
-        "onnxruntime>=1.16.0",
-        "pypinyin>=0.50.0",
-        "jieba>=0.42.0",
-        "aiofiles>=23.0.0"
-    ]
+        if torch.cuda.is_available():
+            print(f"✓ CUDA available: {torch.cuda.get_device_name(0)}")
+            print(f"✓ CUDA version: {torch.version.cuda}")
+        else:
+            print("⚠️  CUDA not available, using CPU")
 
-    # Optional dependencies that may fail
-    optional_deps = [
-        "WeTextProcessing>=1.0.3",
-        "pynini",
-        "openfst-python"
-    ]
+    except ImportError:
+        print("❌ PyTorch not found! Please install PyTorch first.")
+        print("   pip install torch torchaudio")
+        return False
 
-    # Install core dependencies
-    for dep in core_deps:
-        try:
-            subprocess.check_call([sys.executable, "-m", "pip", "install", dep],
-                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        except subprocess.CalledProcessError:
-            print(f"⚠️  Failed to install {dep}")
-
-    # Install optional dependencies (don't fail if they don't work)
-    for dep in optional_deps:
-        try:
-            subprocess.check_call([sys.executable, "-m", "pip", "install", dep],
-                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        except subprocess.CalledProcessError:
-            print(f"⚠️  Failed to install {dep}")
-
-    print("✓ Dependencies installation completed")
+    return True
 
 def setup_python_path():
     """Setup Python path for imports"""
@@ -252,9 +217,11 @@ class SynthesisResponse(BaseModel):
         print("✓ app/models directory and files created")
 
 # CRITICAL: Setup everything before any other imports
-print("🚀 CosyVoice2 API - Auto Setup")
+print("🚀 CosyVoice2 API - Starting Server")
 setup_cosyvoice()
-install_dependencies()
+if not check_torch_cuda():
+    print("❌ PyTorch check failed. Please install dependencies first.")
+    sys.exit(1)
 ROOT_DIR = setup_python_path()
 create_models_if_missing(ROOT_DIR)
 

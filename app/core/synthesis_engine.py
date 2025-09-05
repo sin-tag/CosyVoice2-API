@@ -249,8 +249,14 @@ class SynthesisEngine:
             # Set random seed for reproducible results
             set_all_random_seed(42)
 
-            # Use instruct inference (check if model supports instruct)
-            if hasattr(model, 'instruct') and model.instruct:
+            # Use appropriate inference method based on model type
+            if hasattr(model, 'inference_instruct2'):
+                # CosyVoice2 with instruct2 (supports prompt_audio + instruct_text)
+                synthesis_generator = model.inference_instruct2(
+                    text, instruct_text, prompt_speech_16k, stream=stream, speed=speed
+                )
+            elif hasattr(model, 'instruct') and model.instruct:
+                # CosyVoice1 instruct mode (no prompt_audio support)
                 synthesis_generator = model.inference_instruct(
                     text, "", instruct_text, stream=stream, speed=speed
                 )
