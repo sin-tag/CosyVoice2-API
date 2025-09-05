@@ -46,12 +46,14 @@ class AsyncSynthesisManager:
 
     def __init__(self, synthesis_engine: SynthesisEngine, max_concurrent: int = 4):
         self.synthesis_engine = synthesis_engine
-        self.max_concurrent = max_concurrent
+        self.max_concurrent = max_concurrent  # Keep for reference but don't enforce
         self.tasks: Dict[str, AsyncTask] = {}
+        # NO LIMITS - Full parallel processing!
+        self._task_lock = asyncio.Lock()  # Keep for task dict protection only
         self.running_tasks: Set[str] = set()
         self.running = False
         self._lock = asyncio.Lock()
-        self._semaphore = asyncio.Semaphore(max_concurrent)
+        # REMOVED: self._semaphore - No concurrent limits!
         
     async def start(self):
         """Start the async synthesis manager"""
@@ -165,9 +167,9 @@ class AsyncSynthesisManager:
             logger.info(f"Cleaned up {len(to_remove)} old tasks")
             
     async def _process_task_async(self, task_id: str):
-        """Process a synthesis task asynchronously"""
-        async with self._semaphore:  # Limit concurrent tasks
-            async with self._lock:
+        """Process a synthesis task asynchronously - NO LIMITS, full parallel!"""
+        # REMOVED: semaphore - No concurrent limits!
+        async with self._lock:
                 task = self.tasks.get(task_id)
                 if not task:
                     return

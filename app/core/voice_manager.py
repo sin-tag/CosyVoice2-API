@@ -39,7 +39,8 @@ class VoiceManager:
         self.cosyvoice_model: Optional[CosyVoice] = None
         self.cosyvoice2_model: Optional[CosyVoice2] = None
         self._initialized = False
-        self._lock = asyncio.Lock()
+        self._lock = asyncio.Lock()  # Keep only for initialization
+        # REMOVED: self._model_lock - Allow parallel model access!
     
     async def initialize(self):
         """Initialize the voice manager"""
@@ -148,8 +149,12 @@ class VoiceManager:
             logger.error(f"Error loading cached voices: {e}")
     
     def _get_active_model(self) -> Optional[CosyVoice]:
-        """Get the active CosyVoice model"""
+        """Get the active CosyVoice model - direct access for parallel processing"""
         return self.cosyvoice2_model or self.cosyvoice_model
+
+    def get_model_directly(self) -> Optional[CosyVoice]:
+        """Get model directly - no locks for maximum parallelism"""
+        return self._get_active_model()
     
     async def add_voice(self, voice_create: VoiceCreate, audio_file_content: bytes) -> VoiceInDB:
         """Add a new voice to the cache"""

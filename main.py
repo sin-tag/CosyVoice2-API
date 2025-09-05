@@ -227,6 +227,7 @@ create_models_if_missing(ROOT_DIR)
 
 # Now import everything else
 import asyncio
+import concurrent.futures
 import logging
 from contextlib import asynccontextmanager
 from typing import Dict, Any
@@ -262,6 +263,15 @@ async def lifespan(app: FastAPI):
 
     logger.info("Starting CosyVoice2 API server...")
 
+    # Configure thread pool for MAXIMUM parallelism
+    loop = asyncio.get_event_loop()
+    executor = concurrent.futures.ThreadPoolExecutor(
+        max_workers=16,  # High thread count for true parallelism
+        thread_name_prefix="synthesis_"
+    )
+    loop.set_default_executor(executor)
+    logger.info(f"Thread pool configured with {executor._max_workers} workers for unlimited parallel processing")
+
     try:
         # Initialize voice manager
         voice_manager = VoiceManager(
@@ -276,9 +286,10 @@ async def lifespan(app: FastAPI):
         # Initialize async synthesis manager
         logger.info("Initializing async synthesis manager...")
         synthesis_engine = SynthesisEngine(voice_manager)
-        async_synthesis_manager = AsyncSynthesisManager(synthesis_engine, max_concurrent=4)
+        # NO LIMITS - unlimited parallel processing!
+        async_synthesis_manager = AsyncSynthesisManager(synthesis_engine, max_concurrent=999)
         await async_synthesis_manager.start()
-        logger.info("Async synthesis manager initialized successfully")
+        logger.info("Async synthesis manager initialized for unlimited parallel processing")
 
         # Store in app state for access in routes
         app.state.voice_manager = voice_manager

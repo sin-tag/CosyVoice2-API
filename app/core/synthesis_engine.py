@@ -116,7 +116,7 @@ class SynthesisEngine:
     async def synthesize_cross_lingual_with_cache(self, request: CrossLingualWithCacheRequest) -> SynthesisResponse:
         """跨语种复刻 - 使用缓存语音 (Cross-lingual voice cloning with cached voice)"""
         try:
-            model = self.voice_manager._get_active_model()
+            model = self.voice_manager.get_model_directly()  # Direct access for parallel processing
             if not model:
                 raise ModelNotReadyError("CosyVoice model not ready")
 
