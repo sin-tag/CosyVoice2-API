@@ -34,6 +34,32 @@ logger = logging.getLogger(__name__)
 MAX_VAL = 0.8
 PROMPT_SR = 16000
 
+def detect_language_and_add_tags(text: str) -> str:
+    """
+    Detect language and add appropriate tags for CosyVoice cross-lingual synthesis
+    """
+    import re
+
+    # Check for Chinese characters
+    if re.search(r'[\u4e00-\u9fff]', text):
+        return f"<|zh|>{text}"
+
+    # Check for Japanese characters (hiragana, katakana, kanji)
+    elif re.search(r'[\u3040-\u309f\u30a0-\u30ff]', text):
+        return f"<|jp|>{text}"
+
+    # Check for Korean characters
+    elif re.search(r'[\uac00-\ud7af]', text):
+        return f"<|ko|>{text}"
+
+    # Check for Cantonese (basic detection)
+    elif any(word in text for word in ['係', '喺', '咗', '嘅', '佢', '唔']):
+        return f"<|yue|>{text}"
+
+    # Default to English for Latin characters
+    else:
+        return f"<|en|>{text}"
+
 def postprocess(speech, top_db=60, hop_length=220, win_length=440):
     """Postprocess audio like in the original CosyVoice webui"""
     speech, _ = librosa.effects.trim(
@@ -209,9 +235,12 @@ class SynthesisEngine:
             # Set random seed for reproducible results
             set_all_random_seed(42)
 
-            # Use zero-shot inference (no text_frontend parameter in original)
+            # Add language tags for better cross-lingual support
+            tagged_text = detect_language_and_add_tags(text)
+
+            # Use zero-shot inference with language tags
             synthesis_generator = model.inference_zero_shot(
-                text, prompt_text, prompt_speech_16k, stream=stream, speed=speed
+                tagged_text, prompt_text, prompt_speech_16k, stream=stream, speed=speed
             )
 
             # Collect audio chunks
@@ -249,21 +278,31 @@ class SynthesisEngine:
             # Set random seed for reproducible results
             set_all_random_seed(42)
 
-            # Use appropriate inference method based on model type
-            if hasattr(model, 'inference_instruct2'):
-                # CosyVoice2 with instruct2 (supports prompt_audio + instruct_text)
-                synthesis_generator = model.inference_instruct2(
-                    text, instruct_text, prompt_speech_16k, stream=stream, speed=speed
+            # Add language tags to text for better cross-lingual support
+            tagged_text = detect_language_and_add_tags(text)
+
+            # For cross-lingual with instruct, prioritize cross-lingual mode over instruct
+            # This prevents the "tùng tùng" issue when using instruct with different languages
+            if hasattr(model, 'inference_cross_lingual'):
+                # Use cross-lingual mode for better language handling
+                # Note: cross-lingual doesn't use prompt_text, only prompt_audio
+                logger.info(f"Using cross-lingual mode for text: {tagged_text}")
+                synthesis_generator = model.inference_cross_lingual(
+                    tagged_text, prompt_speech_16k, stream=stream, speed=speed
                 )
-            elif hasattr(model, 'instruct') and model.instruct:
-                # CosyVoice1 instruct mode (no prompt_audio support)
-                synthesis_generator = model.inference_instruct(
-                    text, "", instruct_text, stream=stream, speed=speed
+            elif hasattr(model, 'inference_instruct2') and instruct_text:
+                # CosyVoice2 with instruct2 - use with language tags
+                logger.info(f"Using instruct2 mode with language tags")
+                synthesis_generator = model.inference_instruct2(
+                    tagged_text, instruct_text, prompt_speech_16k, stream=stream, speed=speed
                 )
             else:
-                # Fallback to zero-shot with instruct as prompt text
+                # Fallback to zero-shot with language tags
+                # Combine prompt_text and instruct_text for better context
+                combined_prompt = f"{prompt_text}. {instruct_text}" if prompt_text else instruct_text
+                logger.info(f"Using zero-shot mode with combined prompt")
                 synthesis_generator = model.inference_zero_shot(
-                    text, instruct_text, prompt_speech_16k, stream=stream, speed=speed
+                    tagged_text, combined_prompt, prompt_speech_16k, stream=stream, speed=speed
                 )
 
             # Collect audio chunks

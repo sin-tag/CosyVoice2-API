@@ -135,13 +135,16 @@ async def cross_lingual_with_cache(
 @router.get("/audio/{filename}")
 async def get_audio_file(filename: str):
     """Serve generated audio files"""
-    from app.core.file_manager import file_manager
-    
+    from app.utils.file_utils import file_manager
+
     try:
         file_path = file_manager.get_output_audio_path(filename)
+        logger.info(f"Serving audio file: {filename} -> {file_path}")
+
         if not os.path.exists(file_path):
-            raise HTTPException(status_code=404, detail="Audio file not found")
-        
+            logger.error(f"Audio file not found: {file_path}")
+            raise HTTPException(status_code=404, detail=f"Audio file not found: {filename}")
+
         return FileResponse(
             path=file_path,
             media_type="audio/wav",
