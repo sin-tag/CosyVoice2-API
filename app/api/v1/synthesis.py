@@ -54,15 +54,17 @@ def get_async_synthesis_manager(request: Request) -> AsyncSynthesisManager:
 @router.post("/with-audio", response_model=SynthesisResponse)
 async def cross_lingual_with_audio(
     text: str = Form(..., description="要合成的文本 (Text to synthesize)"),
-    prompt_text: str = Form(..., description="输入prompt文本 (Reference text that matches the prompt audio)"),
-    instruct_text: Optional[str] = Form(None, description="输入instruct文本 (Optional instruction for voice style/emotion)"),
     format: AudioFormat = Form(AudioFormat.WAV, description="输出音频格式"),
     speed: float = Form(1.0, description="语速倍数"),
     stream: bool = Form(False, description="是否流式推理 (默认: 否)"),
     prompt_audio: UploadFile = File(..., description="参考音频文件 (Reference audio file)"),
     synthesis_engine: SynthesisEngine = Depends(get_synthesis_engine)
 ):
-    """跨语种复刻 - 带音频文件 (Cross-lingual voice cloning with audio file)"""
+    """跨语种复刻 - 带音频文件 (Cross-lingual voice cloning with audio file)
+
+    Exactly like repo gốc CosyVoice: chỉ cần text và prompt_audio.
+    KHÔNG sử dụng prompt_text hay instruct_text như repo gốc.
+    """
     
     try:
         # Save uploaded audio to temporary file
@@ -72,12 +74,12 @@ async def cross_lingual_with_audio(
             temp_audio_path = temp_file.name
         
         try:
-            # Create request object
+            # Create request object - chỉ cần text và prompt_audio như repo gốc
             request = CrossLingualWithAudioRequest(
                 text=text,
-                prompt_text=prompt_text,
+                prompt_text="",  # Empty như repo gốc
                 prompt_audio_url=temp_audio_path,
-                instruct_text=instruct_text,
+                instruct_text="",  # Empty như repo gốc
                 format=format,
                 speed=speed,
                 stream=stream

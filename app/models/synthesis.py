@@ -16,22 +16,26 @@ class CrossLingualWithAudioRequest(BaseModel):
 
 # 跨语种复刻 - 使用缓存语音 (Cross-lingual with cached voice)
 class CrossLingualWithCacheRequest(BaseModel):
-    """跨语种复刻 - 使用缓存语音"""
+    """跨语种复刻 - 使用缓存语音 (Cross-lingual voice cloning with cached voice)
+
+    Exactly like repo gốc CosyVoice: chỉ cần text và voice_id.
+    KHÔNG sử dụng prompt_text hay instruct_text như repo gốc.
+    """
     text: str = Field(..., description="要合成的文本 (Text to synthesize)", max_length=2000)
     voice_id: str = Field(..., description="缓存中的语音ID (Voice ID from cache)")
-    prompt_text: Optional[str] = Field(None, description="输入prompt文本 (Optional prompt text for voice reference)")
-    instruct_text: Optional[str] = Field(None, description="输入instruct文本 (Optional instruction for voice style/emotion)")
     format: AudioFormat = Field(AudioFormat.WAV, description="输出音频格式")
     speed: float = Field(1.0, ge=0.5, le=2.0, description="语速倍数")
     stream: bool = Field(False, description="是否流式推理 (默认: 否)")
 
 # 跨语种复刻 - 异步任务请求 (Cross-lingual async task)
 class CrossLingualAsyncRequest(BaseModel):
-    """跨语种复刻 - 异步任务请求"""
+    """跨语种复刻 - 异步任务请求 (Cross-lingual async task request)
+
+    Exactly like repo gốc CosyVoice: chỉ cần text và voice_id.
+    KHÔNG sử dụng prompt_text hay instruct_text như repo gốc.
+    """
     text: str = Field(..., description="要合成的文本 (Text to synthesize)", max_length=2000)
     voice_id: str = Field(..., description="缓存中的语音ID (Voice ID from cache)")
-    prompt_text: Optional[str] = Field(None, description="输入prompt文本 (Optional prompt text for voice reference)")
-    instruct_text: Optional[str] = Field(None, description="输入instruct文本 (Optional instruction for voice style/emotion)")
     format: AudioFormat = Field(AudioFormat.WAV, description="输出音频格式")
     speed: float = Field(1.0, ge=0.5, le=2.0, description="语速倍数")
     callback_url: Optional[str] = Field(None, description="完成后回调URL (Optional callback URL when completed)")
