@@ -170,70 +170,70 @@ class AsyncSynthesisManager:
         """Process a synthesis task asynchronously - NO LIMITS, full parallel!"""
         # REMOVED: semaphore - No concurrent limits!
         async with self._lock:
-                task = self.tasks.get(task_id)
-                if not task:
-                    return
+            task = self.tasks.get(task_id)
+            if not task:
+                return
 
-                # Add to running tasks
-                self.running_tasks.add(task_id)
-                task.status = TaskStatus.PROCESSING
-                task.progress = 0.1
-                task.message = "Starting synthesis..."
+            # Add to running tasks
+            self.running_tasks.add(task_id)
+            task.status = TaskStatus.PROCESSING
+            task.progress = 0.1
+            task.message = "Starting synthesis..."
 
-            try:
-                logger.info(f"Processing task {task_id}")
+        try:
+            logger.info(f"Processing task {task_id}")
 
-                # Create synthesis request
-                from app.models.synthesis import CrossLingualWithCacheRequest
-                synthesis_request = CrossLingualWithCacheRequest(
-                    text=task.request.text,
-                    voice_id=task.request.voice_id,
-                    prompt_text=task.request.prompt_text,
-                    instruct_text=task.request.instruct_text,
-                    format=task.request.format,
-                    speed=task.request.speed,
-                    stream=False  # Always non-streaming for async
-                )
+            # Create synthesis request
+            from app.models.synthesis import CrossLingualWithCacheRequest
+            synthesis_request = CrossLingualWithCacheRequest(
+                text=task.request.text,
+                voice_id=task.request.voice_id,
+                prompt_text=task.request.prompt_text,
+                instruct_text=task.request.instruct_text,
+                format=task.request.format,
+                speed=task.request.speed,
+                stream=False  # Always non-streaming for async
+            )
 
-                # Update progress
-                async with self._lock:
-                    task.progress = 0.3
-                    task.message = "Synthesizing audio..."
+            # Update progress
+            async with self._lock:
+                task.progress = 0.3
+                task.message = "Synthesizing audio..."
 
-                # Run synthesis (this is the main work)
-                result = await self.synthesis_engine.synthesize_cross_lingual_with_cache(synthesis_request)
+            # Run synthesis (this is the main work)
+            result = await self.synthesis_engine.synthesize_cross_lingual_with_cache(synthesis_request)
 
-                # Update task with results
-                async with self._lock:
-                    task.status = TaskStatus.COMPLETED
-                    task.progress = 1.0
-                    task.message = "Synthesis completed successfully"
-                    task.audio_url = result.audio_url
-                    task.file_path = result.file_path
-                    task.duration = result.duration
-                    task.synthesis_time = result.synthesis_time
-                    task.completed_at = datetime.now().isoformat()
+            # Update task with results
+            async with self._lock:
+                task.status = TaskStatus.COMPLETED
+                task.progress = 1.0
+                task.message = "Synthesis completed successfully"
+                task.audio_url = result.audio_url
+                task.file_path = result.file_path
+                task.duration = result.duration
+                task.synthesis_time = result.synthesis_time
+                task.completed_at = datetime.now().isoformat()
 
-                logger.info(f"Task {task_id} completed successfully")
+            logger.info(f"Task {task_id} completed successfully")
 
-                # Call callback URL if provided
-                if task.request.callback_url:
-                    await self._call_callback_async(task.request.callback_url, task)
+            # Call callback URL if provided
+            if task.request.callback_url:
+                await self._call_callback_async(task.request.callback_url, task)
 
-            except Exception as e:
-                logger.error(f"Task {task_id} failed: {e}")
+        except Exception as e:
+            logger.error(f"Task {task_id} failed: {e}")
 
-                async with self._lock:
-                    task.status = TaskStatus.FAILED
-                    task.progress = 0.0
-                    task.message = "Synthesis failed"
-                    task.error_message = str(e)
-                    task.completed_at = datetime.now().isoformat()
+            async with self._lock:
+                task.status = TaskStatus.FAILED
+                task.progress = 0.0
+                task.message = "Synthesis failed"
+                task.error_message = str(e)
+                task.completed_at = datetime.now().isoformat()
 
-            finally:
-                # Remove from running tasks
-                async with self._lock:
-                    self.running_tasks.discard(task_id)
+        finally:
+            # Remove from running tasks
+            async with self._lock:
+                self.running_tasks.discard(task_id)
                 
     async def _call_callback_async(self, callback_url: str, task: AsyncTask):
         """Call callback URL when task is completed"""
