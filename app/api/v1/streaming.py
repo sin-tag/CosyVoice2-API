@@ -83,19 +83,7 @@ async def stream_cross_lingual_synthesis(
                     chunk_count += 1
                     total_bytes += len(chunk_bytes)
                     
-                    # Yield chunk with metadata header
-                    metadata_header = f"X-Chunk-Index: {metadata.chunk_index}\r\n"
-                    metadata_header += f"X-Chunk-Size: {metadata.chunk_size}\r\n"
-                    metadata_header += f"X-Is-Final: {metadata.is_final}\r\n"
-                    metadata_header += f"X-Sample-Rate: {metadata.sample_rate}\r\n"
-                    
-                    if metadata.is_final:
-                        metadata_header += f"X-Total-Chunks: {metadata.total_chunks}\r\n"
-                    
-                    metadata_header += "\r\n"
-                    
-                    # Yield metadata header followed by audio data
-                    yield metadata_header.encode('utf-8')
+                    # Yield only pure audio data (no metadata headers in stream)
                     yield chunk_bytes
                     
                     logger.debug(f"Streamed chunk {chunk_count}, {len(chunk_bytes)} bytes")
