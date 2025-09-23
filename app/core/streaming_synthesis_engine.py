@@ -17,8 +17,9 @@ from app.models.streaming import (
 from app.models.voice import AudioFormat
 from app.core.synthesis_engine import SynthesisEngine
 from app.core.exceptions import SynthesisError, VoiceNotFoundError
-from cosyvoice.utils.file_utils import load_wav, postprocess
+from cosyvoice.utils.file_utils import load_wav
 from cosyvoice.utils.common import set_all_random_seed
+from app.core.synthesis_engine import postprocess
 
 logger = logging.getLogger(__name__)
 
