@@ -104,7 +104,9 @@ class StreamingSynthesisEngine:
                         
                         # Encode chunk to bytes
                         chunk_bytes = await self._encode_audio_chunk(
-                            chunk_data, target_sample_rate, request.format
+                            chunk_data, target_sample_rate, request.format,
+                            is_first_chunk=(chunk_index == 0),
+                            estimated_total_samples=None  # We don't know total yet
                         )
                         
                         # Create metadata
@@ -133,7 +135,9 @@ class StreamingSynthesisEngine:
                 
                 # Encode final chunk
                 chunk_bytes = await self._encode_audio_chunk(
-                    chunk_data, target_sample_rate, request.format
+                    chunk_data, target_sample_rate, request.format,
+                    is_first_chunk=(chunk_index == 0),
+                    estimated_total_samples=None
                 )
                 
                 # Create final metadata
@@ -216,33 +220,38 @@ class StreamingSynthesisEngine:
             return audio_data
     
     async def _encode_audio_chunk(
-        self, 
-        audio_data: np.ndarray, 
-        sample_rate: int, 
-        format: AudioFormat
+        self,
+        audio_data: np.ndarray,
+        sample_rate: int,
+        format: AudioFormat,
+        is_first_chunk: bool = False,
+        estimated_total_samples: int = None
     ) -> bytes:
-        """Encode audio chunk to specified format"""
+        """Encode audio chunk to specified format with proper streaming support"""
         try:
-            # Convert to tensor
-            audio_tensor = torch.from_numpy(audio_data).unsqueeze(0)
-            
-            # Create in-memory buffer
-            buffer = io.BytesIO()
-            
-            # Save to buffer based on format
             if format == AudioFormat.WAV:
-                torchaudio.save(buffer, audio_tensor, sample_rate, format="wav")
-            elif format == AudioFormat.MP3:
-                # For MP3, we need to use a different approach
-                # Convert to WAV first, then encode to MP3 if needed
-                torchaudio.save(buffer, audio_tensor, sample_rate, format="wav")
+                if is_first_chunk:
+                    # For first chunk, create WAV with header
+                    return self._create_wav_with_header(audio_data, sample_rate, estimated_total_samples)
+                else:
+                    # For subsequent chunks, return only raw PCM data
+                    return self._encode_raw_pcm(audio_data)
             else:
-                # Default to WAV
-                torchaudio.save(buffer, audio_tensor, sample_rate, format="wav")
-            
-            buffer.seek(0)
-            return buffer.getvalue()
-            
+                # For non-WAV formats, use complete file encoding per chunk
+                # This is not ideal for streaming but works for compatibility
+                audio_tensor = torch.from_numpy(audio_data).unsqueeze(0)
+                buffer = io.BytesIO()
+
+                if format == AudioFormat.MP3:
+                    # Convert to WAV first, then encode to MP3 if needed
+                    torchaudio.save(buffer, audio_tensor, sample_rate, format="wav")
+                else:
+                    # Default to WAV
+                    torchaudio.save(buffer, audio_tensor, sample_rate, format="wav")
+
+                buffer.seek(0)
+                return buffer.getvalue()
+
         except Exception as e:
             logger.error(f"Audio encoding failed: {e}")
             raise StreamingError(
@@ -252,6 +261,43 @@ class StreamingSynthesisEngine:
                 timestamp=time.time(),
                 recoverable=False
             )
+
+    def _create_wav_with_header(self, audio_data: np.ndarray, sample_rate: int, estimated_total_samples: int = None) -> bytes:
+        """Create WAV file with proper header for streaming"""
+        # Convert to 16-bit PCM
+        audio_int16 = (audio_data * 32767).astype(np.int16)
+
+        # Estimate total file size (will be updated if known)
+        if estimated_total_samples:
+            data_size = estimated_total_samples * 2  # 16-bit = 2 bytes per sample
+        else:
+            # Use a large placeholder that will work for most cases
+            data_size = len(audio_int16) * 100  # Rough estimate
+
+        # WAV header
+        header = bytearray()
+        header.extend(b'RIFF')  # ChunkID
+        header.extend((36 + data_size).to_bytes(4, 'little'))  # ChunkSize
+        header.extend(b'WAVE')  # Format
+        header.extend(b'fmt ')  # Subchunk1ID
+        header.extend((16).to_bytes(4, 'little'))  # Subchunk1Size (PCM)
+        header.extend((1).to_bytes(2, 'little'))   # AudioFormat (PCM)
+        header.extend((1).to_bytes(2, 'little'))   # NumChannels (mono)
+        header.extend(sample_rate.to_bytes(4, 'little'))  # SampleRate
+        header.extend((sample_rate * 2).to_bytes(4, 'little'))  # ByteRate
+        header.extend((2).to_bytes(2, 'little'))   # BlockAlign
+        header.extend((16).to_bytes(2, 'little'))  # BitsPerSample
+        header.extend(b'data')  # Subchunk2ID
+        header.extend(data_size.to_bytes(4, 'little'))  # Subchunk2Size
+
+        # Combine header with audio data
+        return bytes(header) + audio_int16.tobytes()
+
+    def _encode_raw_pcm(self, audio_data: np.ndarray) -> bytes:
+        """Encode audio data as raw 16-bit PCM for streaming"""
+        # Convert to 16-bit PCM
+        audio_int16 = (audio_data * 32767).astype(np.int16)
+        return audio_int16.tobytes()
     
     async def get_streaming_headers(self, format: AudioFormat) -> Dict[str, str]:
         """Get appropriate HTTP headers for streaming audio"""

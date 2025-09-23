@@ -191,6 +191,90 @@ async def stream_cross_lingual_chunked(
             detail=f"Failed to start chunked streaming: {str(e)}"
         )
 
+@router.post("/cross-lingual/progressive")
+async def stream_cross_lingual_progressive(
+    text: str = Form(..., description="Text to synthesize", max_length=2000),
+    voice_id: str = Form(..., description="Voice ID from cache"),
+    format: AudioFormat = Form(AudioFormat.WAV, description="Audio format"),
+    speed: float = Form(1.0, description="Speech speed multiplier", ge=0.5, le=2.0),
+    quality: StreamingQuality = Form(StreamingQuality.MEDIUM, description="Streaming quality"),
+    request: Request = None,
+    streaming_engine: StreamingSynthesisEngine = Depends(get_streaming_engine)
+):
+    """Stream cross-lingual synthesis with progressive audio playback support
+
+    This endpoint provides proper WAV streaming with header first, then raw PCM data.
+    Designed for progressive audio playback in browsers.
+    """
+
+    logger.info(f"Starting progressive streaming: text='{text[:50]}...', voice_id='{voice_id}'")
+
+    try:
+        # Create streaming request
+        streaming_request = StreamingSynthesisRequest(
+            text=text,
+            voice_id=voice_id,
+            format=format,
+            speed=speed,
+            quality=quality
+        )
+
+        # Get appropriate headers optimized for progressive playback
+        headers = await streaming_engine.get_streaming_headers(format)
+        headers.update({
+            "Accept-Ranges": "bytes",
+            "X-Progressive-Audio": "true",
+            "Access-Control-Expose-Headers": "Content-Length,Accept-Ranges,X-Progressive-Audio"
+        })
+
+        # Create progressive streaming generator
+        async def generate_progressive_stream():
+            """Generate progressive audio stream with proper WAV structure"""
+            try:
+                chunk_count = 0
+                total_bytes = 0
+                start_time = time.time()
+
+                async for chunk_bytes, metadata in streaming_engine.stream_cross_lingual_synthesis(streaming_request):
+                    # Check if client disconnected
+                    if request and await request.is_disconnected():
+                        logger.info("Client disconnected during progressive streaming")
+                        break
+
+                    chunk_count += 1
+                    total_bytes += len(chunk_bytes)
+
+                    # Yield audio chunk
+                    yield chunk_bytes
+
+                    # Log progress for first chunk and every 10th chunk
+                    if chunk_count == 1 or chunk_count % 10 == 0:
+                        elapsed = time.time() - start_time
+                        logger.info(f"Progressive stream: {chunk_count} chunks, {total_bytes} bytes in {elapsed:.2f}s")
+
+                    if metadata.is_final:
+                        logger.info(f"Progressive streaming completed: {chunk_count} chunks, {total_bytes} bytes")
+                        break
+
+            except Exception as e:
+                logger.error(f"Progressive streaming failed: {e}")
+                # Don't yield error in progressive mode as it might corrupt audio
+                raise
+
+        # Return progressive streaming response
+        return StreamingResponse(
+            generate_progressive_stream(),
+            media_type=headers["Content-Type"],
+            headers=headers
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to start progressive streaming: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to start progressive streaming: {str(e)}"
+        )
+
 @router.get("/health")
 async def streaming_health_check(
     streaming_engine: StreamingSynthesisEngine = Depends(get_streaming_engine)
