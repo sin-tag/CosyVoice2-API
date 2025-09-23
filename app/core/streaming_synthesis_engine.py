@@ -29,7 +29,6 @@ class StreamingSynthesisEngine:
     def __init__(self, synthesis_engine: SynthesisEngine):
         self.synthesis_engine = synthesis_engine
         self.voice_manager = synthesis_engine.voice_manager
-        self.model_manager = synthesis_engine.model_manager
         
         # Streaming configuration
         self.quality_settings = {
@@ -48,7 +47,7 @@ class StreamingSynthesisEngine:
         
         try:
             # Get model
-            model = await self.model_manager.get_model()
+            model = self.voice_manager._get_active_model()
             if not model:
                 raise SynthesisError("Model not available")
             
@@ -66,7 +65,7 @@ class StreamingSynthesisEngine:
             chunk_size_samples = int(target_sample_rate * chunk_duration)
             
             # Load and process voice audio
-            prompt_speech_16k = postprocess(load_wav(voice.audio_file_path, 16000))
+            prompt_speech_16k = postprocess(load_wav(voice.audio_file_path, 16000), 16000)
             
             # Set random seed for reproducible results
             set_all_random_seed(42)

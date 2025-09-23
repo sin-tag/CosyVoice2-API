@@ -127,8 +127,17 @@ class StreamingStats(BaseModel):
     error_rate: float = Field(0.0, description="Error rate percentage")
 
 # Error Models for Streaming
-class StreamingError(BaseModel):
-    """Streaming-specific error information"""
+class StreamingError(Exception):
+    """Streaming-specific error exception"""
+    def __init__(self, message: str, error_type: str = "streaming_error", error_code: str = "STREAMING_ERROR", session_id: Optional[str] = None):
+        super().__init__(message)
+        self.error_type = error_type
+        self.error_code = error_code
+        self.message = message
+        self.session_id = session_id
+
+class StreamingErrorInfo(BaseModel):
+    """Streaming error information for API responses"""
     error_type: str = Field(..., description="Type of streaming error")
     error_code: str = Field(..., description="Error code")
     message: str = Field(..., description="Error message")

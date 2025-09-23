@@ -14,6 +14,7 @@ class AudioFormat(str, Enum):
     WAV = "wav"
     MP3 = "mp3"
     FLAC = "flac"
+    M4A = "m4a"
 
 class VoiceBase(BaseModel):
     voice_id: str = Field(..., description="Unique voice identifier")
