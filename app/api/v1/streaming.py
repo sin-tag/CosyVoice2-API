@@ -2,6 +2,7 @@
 import logging
 import asyncio
 import time
+import json
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Form, Request
 from fastapi.responses import StreamingResponse
@@ -273,6 +274,118 @@ async def stream_cross_lingual_progressive(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to start progressive streaming: {str(e)}"
+        )
+
+@router.get("/cross-lingual/sse")
+async def stream_cross_lingual_sse(
+    text: str,
+    voice_id: str,
+    format: AudioFormat = AudioFormat.WAV,
+    speed: float = 1.0,
+    quality: StreamingQuality = StreamingQuality.MEDIUM,
+    request: Request = None,
+    streaming_engine: StreamingSynthesisEngine = Depends(get_streaming_engine)
+):
+    """Stream cross-lingual synthesis using Server-Sent Events for true progressive playback
+
+    This endpoint uses SSE to send audio chunks as separate events, enabling
+    true progressive audio playback in browsers.
+    """
+
+    logger.info(f"Starting SSE streaming: text='{text[:50]}...', voice_id='{voice_id}'")
+
+    try:
+        # Create streaming request
+        streaming_request = StreamingSynthesisRequest(
+            text=text,
+            voice_id=voice_id,
+            format=format,
+            speed=speed,
+            quality=quality
+        )
+
+        # SSE streaming generator
+        async def generate_sse_stream():
+            """Generate Server-Sent Events stream for progressive audio"""
+            try:
+                chunk_count = 0
+                total_bytes = 0
+                start_time = time.time()
+
+                # Send initial event
+                yield f"event: start\ndata: {{\"message\": \"Starting synthesis\", \"timestamp\": {time.time()}}}\n\n"
+
+                async for chunk_bytes, metadata in streaming_engine.stream_cross_lingual_synthesis(streaming_request):
+                    # Check if client disconnected
+                    if request and await request.is_disconnected():
+                        logger.info("Client disconnected during SSE streaming")
+                        break
+
+                    chunk_count += 1
+                    total_bytes += len(chunk_bytes)
+
+                    # Encode audio chunk as base64 for SSE transmission
+                    import base64
+                    chunk_b64 = base64.b64encode(chunk_bytes).decode('utf-8')
+
+                    # Send audio chunk event
+                    event_data = {
+                        "chunk_index": chunk_count,
+                        "chunk_size": len(chunk_bytes),
+                        "total_bytes": total_bytes,
+                        "audio_data": chunk_b64,
+                        "is_final": metadata.is_final,
+                        "timestamp": time.time(),
+                        "sample_rate": metadata.sample_rate,
+                        "channels": metadata.channels
+                    }
+
+                    yield f"event: audio_chunk\ndata: {json.dumps(event_data)}\n\n"
+
+                    # Log progress
+                    if chunk_count == 1 or chunk_count % 5 == 0:
+                        elapsed = time.time() - start_time
+                        logger.info(f"SSE stream: {chunk_count} chunks, {total_bytes} bytes in {elapsed:.2f}s")
+
+                    if metadata.is_final:
+                        break
+
+                # Send completion event
+                completion_data = {
+                    "total_chunks": chunk_count,
+                    "total_bytes": total_bytes,
+                    "duration": time.time() - start_time,
+                    "message": "Synthesis completed"
+                }
+                yield f"event: complete\ndata: {json.dumps(completion_data)}\n\n"
+
+                logger.info(f"SSE streaming completed: {chunk_count} chunks, {total_bytes} bytes")
+
+            except Exception as e:
+                logger.error(f"SSE streaming failed: {e}")
+                error_data = {
+                    "error": str(e),
+                    "timestamp": time.time()
+                }
+                yield f"event: error\ndata: {json.dumps(error_data)}\n\n"
+
+        # Return SSE response
+        return StreamingResponse(
+            generate_sse_stream(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": "Cache-Control"
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to start SSE streaming: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to start SSE streaming: {str(e)}"
         )
 
 @router.get("/health")
