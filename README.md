@@ -1,8 +1,17 @@
-# CosyVoice2 API
+# CosyVoice2 API with Real-time Streaming
 
-A FastAPI-based REST API for CosyVoice2 voice cloning and text-to-speech synthesis.
+A FastAPI-based REST API for CosyVoice2 voice cloning and text-to-speech synthesis with **real-time streaming capabilities**.
 
-## Features
+## 🚀 New Streaming Features
+
+- **🎵 Real-time HTTP Streaming**: Stream audio chunks as they're generated for low-latency synthesis
+- **🔄 WebSocket Bidirectional Streaming**: Full-duplex communication for interactive voice applications
+- **⚡ Multiple Concurrent Streams**: Handle up to 10+ simultaneous streaming requests
+- **🎚️ Quality Optimization**: Configurable streaming quality (Low/Medium/High) for different use cases
+- **🛡️ Comprehensive Error Handling**: Robust error recovery and graceful degradation
+- **📊 Performance Monitoring**: Real-time statistics and health checks for streaming services
+
+## Core Features
 
 - **Voice Cache Management**: CRUD operations for managing cached voices
 - **Multiple Audio Formats**: Support for MP3, WAV, FLAC, and M4A formats
@@ -191,6 +200,15 @@ The API will be available at `http://localhost:8000`
 
 ## API Endpoints
 
+### 🎵 Streaming Synthesis (NEW!)
+
+- `POST /api/v1/streaming/cross-lingual` - Real-time HTTP streaming synthesis
+- `POST /api/v1/streaming/cross-lingual/chunked` - Chunked streaming synthesis
+- `WebSocket /api/v1/ws/stream` - Bidirectional WebSocket streaming
+- `GET /api/v1/streaming/health` - Streaming service health check
+- `GET /api/v1/streaming/stats` - Streaming performance statistics
+- `GET /api/v1/ws/sessions` - Active WebSocket sessions
+
 ### Voice Management
 
 - `GET /api/v1/voices/` - List all cached voices
@@ -211,6 +229,77 @@ The API will be available at `http://localhost:8000`
 - `GET /health` - Health check
 
 ## Usage Examples
+
+### 🎵 Streaming Synthesis (NEW!)
+
+#### HTTP Streaming
+```python
+import aiohttp
+import asyncio
+
+async def stream_synthesis():
+    url = "http://localhost:8000/api/v1/streaming/cross-lingual"
+    data = {
+        "text": "Hello, this is real-time streaming synthesis!",
+        "voice_id": "my_voice_001",
+        "format": "wav",
+        "quality": "medium"
+    }
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, data=data) as response:
+            async for chunk in response.content.iter_chunked(1024):
+                # Process audio chunk in real-time
+                print(f"Received {len(chunk)} bytes")
+
+asyncio.run(stream_synthesis())
+```
+
+#### WebSocket Streaming
+```python
+import websockets
+import json
+import base64
+import asyncio
+
+async def websocket_synthesis():
+    uri = "ws://localhost:8000/api/v1/ws/stream"
+
+    async with websockets.connect(uri) as websocket:
+        # Send synthesis request
+        request = {
+            "message_type": "text_request",
+            "text": "Hello WebSocket streaming!",
+            "voice_id": "my_voice_001",
+            "format": "wav",
+            "quality": "high"
+        }
+
+        await websocket.send(json.dumps(request))
+
+        # Receive streaming audio
+        while True:
+            response = await websocket.recv()
+            message = json.loads(response)
+
+            if message["message_type"] == "audio_chunk":
+                audio_data = base64.b64decode(message["audio_data"])
+                print(f"Received audio chunk: {len(audio_data)} bytes")
+
+                if message["metadata"]["is_final"]:
+                    break
+
+asyncio.run(websocket_synthesis())
+```
+
+#### Test Streaming Demo
+```bash
+# Run the comprehensive streaming demo
+python examples/streaming_demo.py --voice-id my_voice_001 --concurrent 5
+
+# Test specific streaming features
+python examples/streaming_demo.py --voice-id my_voice_001 --skip-websocket
+```
 
 ### Add Voice to Cache
 
@@ -291,13 +380,19 @@ CosyVoice2-API/
 └── models/                # CosyVoice model files
 ```
 
-## Detailed Setup Guides
+## Documentation
 
+### Setup Guides
 - **[Conda Setup Guide](CONDA_SETUP.md)** - Comprehensive conda-based installation
 - **[Quick Start Guide](QUICK_START.md)** - Get running in minutes
 - **[Troubleshooting Guide](TROUBLESHOOTING.md)** - Fix common issues
 - **[Docker Deployment](DEPLOYMENT.md)** - Docker and production deployment
+
+### API Documentation
 - **[API Examples](docs/API_EXAMPLES.md)** - Detailed API usage examples
+- **[🎵 Streaming API Guide](docs/STREAMING_API.md)** - Complete streaming functionality documentation
+- **[WebSocket Streaming](docs/STREAMING_API.md#websocket-endpoints)** - Real-time bidirectional streaming
+- **[Performance Optimization](docs/STREAMING_API.md#performance-optimization)** - Streaming performance tips
 
 ## System Requirements
 

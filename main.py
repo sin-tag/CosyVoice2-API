@@ -347,15 +347,30 @@ def create_app() -> FastAPI:
     @app.get("/")
     async def root():
         return {
-            "message": "CosyVoice2 跨语种复刻 API Server",
-            "description": "Cross-lingual Voice Cloning with CosyVoice2-0.5B",
-            "version": "2.0.0",
+            "message": "CosyVoice2 跨语种复刻 API Server with Streaming Support",
+            "description": "Cross-lingual Voice Cloning with CosyVoice2-0.5B - Now with real-time streaming!",
+            "version": "2.1.0",
             "docs": "/docs",
             "endpoints": {
                 "voice_management": "/api/v1/voices/",
                 "cross_lingual_with_audio": "/api/v1/cross-lingual/with-audio",
-                "cross_lingual_with_cache": "/api/v1/cross-lingual/with-cache"
-            }
+                "cross_lingual_with_cache": "/api/v1/cross-lingual/with-cache",
+                "streaming_synthesis": "/api/v1/streaming/cross-lingual",
+                "chunked_streaming": "/api/v1/streaming/cross-lingual/chunked",
+                "websocket_streaming": "/api/v1/ws/stream",
+                "streaming_health": "/api/v1/streaming/health",
+                "websocket_sessions": "/api/v1/ws/sessions"
+            },
+            "features": [
+                "Cross-lingual voice cloning",
+                "Real-time HTTP streaming",
+                "WebSocket bidirectional streaming",
+                "Multiple concurrent streams",
+                "Async task processing",
+                "Multiple audio formats (WAV, MP3, FLAC, M4A)",
+                "Streaming quality optimization",
+                "Comprehensive error handling"
+            ]
         }
     
     @app.get("/health")
