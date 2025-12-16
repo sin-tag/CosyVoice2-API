@@ -1,0 +1,1024 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "CosyVoice API",
+    "description": "Cross-lingual Voice Cloning API with CosyVoice2 (v2) and CosyVoice3 (v3)",
+    "version": "3.0.0",
+    "contact": {
+      "name": "CosyVoice API Support"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8012",
+      "description": "Local development server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Health",
+      "description": "Health check endpoints"
+    },
+    {
+      "name": "Voice Management (v3)",
+      "description": "CosyVoice3 voice management"
+    },
+    {
+      "name": "Cross-lingual Synthesis (v3)",
+      "description": "CosyVoice3 synthesis endpoints"
+    },
+    {
+      "name": "Streaming (v3)",
+      "description": "CosyVoice3 streaming endpoints"
+    },
+    {
+      "name": "WebSocket (v3)",
+      "description": "CosyVoice3 WebSocket endpoints"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "Health check",
+        "operationId": "health_check",
+        "responses": {
+          "200": {
+            "description": "Server status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v3/voices/": {
+      "get": {
+        "tags": ["Voice Management (v3)"],
+        "summary": "List voices",
+        "operationId": "list_voices_v3",
+        "parameters": [
+          {
+            "name": "voice_type",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/VoiceType"
+            }
+          },
+          {
+            "name": "language",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1,
+              "minimum": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of voices",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VoiceListResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Voice Management (v3)"],
+        "summary": "Create voice",
+        "operationId": "create_voice_v3",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/VoiceCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Voice created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VoiceResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Voice already exists"
+          }
+        }
+      }
+    },
+    "/api/v3/voices/{voice_id}": {
+      "get": {
+        "tags": ["Voice Management (v3)"],
+        "summary": "Get voice",
+        "operationId": "get_voice_v3",
+        "parameters": [
+          {
+            "name": "voice_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Voice details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VoiceResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Voice not found"
+          }
+        }
+      },
+      "put": {
+        "tags": ["Voice Management (v3)"],
+        "summary": "Update voice",
+        "operationId": "update_voice_v3",
+        "parameters": [
+          {
+            "name": "voice_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoiceUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Voice updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VoiceResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Voice Management (v3)"],
+        "summary": "Delete voice",
+        "operationId": "delete_voice_v3",
+        "parameters": [
+          {
+            "name": "voice_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Voice deleted"
+          }
+        }
+      }
+    },
+    "/api/v3/cross-lingual/with-audio": {
+      "post": {
+        "tags": ["Cross-lingual Synthesis (v3)"],
+        "summary": "Synthesize with audio reference",
+        "operationId": "cross_lingual_with_audio_v3",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/CrossLingualWithAudioRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Synthesis result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SynthesisResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v3/cross-lingual/with-cache": {
+      "post": {
+        "tags": ["Cross-lingual Synthesis (v3)"],
+        "summary": "Synthesize with cached voice",
+        "operationId": "cross_lingual_with_cache_v3",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CrossLingualWithCacheRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Synthesis result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SynthesisResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v3/cross-lingual/instruct": {
+      "post": {
+        "tags": ["Cross-lingual Synthesis (v3)"],
+        "summary": "Instruction-based synthesis",
+        "operationId": "instruct_synthesis_v3",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/InstructSynthesisRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Synthesis result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SynthesisResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v3/cross-lingual/capabilities": {
+      "get": {
+        "tags": ["Cross-lingual Synthesis (v3)"],
+        "summary": "Get CosyVoice3 capabilities",
+        "operationId": "get_capabilities_v3",
+        "responses": {
+          "200": {
+            "description": "CosyVoice3 capabilities",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapabilitiesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v3/cross-lingual/task": {
+      "post": {
+        "tags": ["Cross-lingual Synthesis (v3)"],
+        "summary": "Create synthesis task",
+        "operationId": "create_task_v3",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Task created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v3/cross-lingual/task/{task_id}": {
+      "get": {
+        "tags": ["Cross-lingual Synthesis (v3)"],
+        "summary": "Get task status",
+        "operationId": "get_task_status_v3",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Task status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Cross-lingual Synthesis (v3)"],
+        "summary": "Delete task",
+        "operationId": "delete_task_v3",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Task deleted"
+          }
+        }
+      }
+    },
+    "/api/v3/streaming/cross-lingual": {
+      "post": {
+        "tags": ["Streaming (v3)"],
+        "summary": "HTTP streaming synthesis",
+        "operationId": "stream_synthesis_v3",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/StreamingSynthesisRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Streaming audio",
+            "content": {
+              "audio/wav": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v3/streaming/cross-lingual/sse": {
+      "get": {
+        "tags": ["Streaming (v3)"],
+        "summary": "SSE streaming synthesis",
+        "operationId": "stream_sse_v3",
+        "parameters": [
+          {
+            "name": "text",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "voice_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/AudioFormat"
+            }
+          },
+          {
+            "name": "speed",
+            "in": "query",
+            "schema": {
+              "type": "number",
+              "default": 1.0
+            }
+          },
+          {
+            "name": "quality",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/StreamingQuality"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSE stream",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v3/streaming/health": {
+      "get": {
+        "tags": ["Streaming (v3)"],
+        "summary": "Streaming health check",
+        "operationId": "streaming_health_v3",
+        "responses": {
+          "200": {
+            "description": "Streaming service status"
+          }
+        }
+      }
+    },
+    "/api/v3/ws/sessions": {
+      "get": {
+        "tags": ["WebSocket (v3)"],
+        "summary": "Get active WebSocket sessions",
+        "operationId": "get_ws_sessions_v3",
+        "responses": {
+          "200": {
+            "description": "Active sessions"
+          }
+        }
+      }
+    },
+    "/api/v3/audio/{filename}": {
+      "get": {
+        "tags": ["Cross-lingual Synthesis (v3)"],
+        "summary": "Download audio file",
+        "operationId": "get_audio_v3",
+        "parameters": [
+          {
+            "name": "filename",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Audio file",
+            "content": {
+              "audio/wav": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "VoiceType": {
+        "type": "string",
+        "enum": ["sft", "zero_shot", "cross_lingual", "instruct"]
+      },
+      "AudioFormat": {
+        "type": "string",
+        "enum": ["wav", "mp3", "flac"],
+        "default": "wav"
+      },
+      "StreamingQuality": {
+        "type": "string",
+        "enum": ["low", "medium", "high"],
+        "default": "medium"
+      },
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "v2": {
+            "type": "object",
+            "properties": {
+              "ready": {
+                "type": "boolean"
+              },
+              "model": {
+                "type": "string"
+              }
+            }
+          },
+          "v3": {
+            "type": "object",
+            "properties": {
+              "ready": {
+                "type": "boolean"
+              },
+              "model": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "VoiceCreateRequest": {
+        "type": "object",
+        "required": ["voice_id", "name", "voice_type", "audio_file"],
+        "properties": {
+          "voice_id": {
+            "type": "string",
+            "description": "Unique voice identifier"
+          },
+          "name": {
+            "type": "string",
+            "description": "Human-readable voice name"
+          },
+          "description": {
+            "type": "string",
+            "description": "Voice description"
+          },
+          "voice_type": {
+            "$ref": "#/components/schemas/VoiceType"
+          },
+          "language": {
+            "type": "string",
+            "description": "Primary language (e.g., zh, en, ja)"
+          },
+          "prompt_text": {
+            "type": "string",
+            "description": "Text matching the audio sample"
+          },
+          "audio_format": {
+            "$ref": "#/components/schemas/AudioFormat"
+          },
+          "audio_file": {
+            "type": "string",
+            "format": "binary",
+            "description": "Audio file for voice cloning"
+          }
+        }
+      },
+      "VoiceUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          }
+        }
+      },
+      "VoiceResponse": {
+        "type": "object",
+        "properties": {
+          "voice_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "voice_type": {
+            "$ref": "#/components/schemas/VoiceType"
+          },
+          "language": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "audio_format": {
+            "$ref": "#/components/schemas/AudioFormat"
+          },
+          "file_size": {
+            "type": "integer"
+          },
+          "duration": {
+            "type": "number"
+          },
+          "sample_rate": {
+            "type": "integer"
+          },
+          "is_active": {
+            "type": "boolean"
+          }
+        }
+      },
+      "VoiceListResponse": {
+        "type": "object",
+        "properties": {
+          "voices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VoiceResponse"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "page_size": {
+            "type": "integer"
+          }
+        }
+      },
+      "CrossLingualWithAudioRequest": {
+        "type": "object",
+        "required": ["text", "prompt_audio"],
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Text to synthesize",
+            "maxLength": 2000
+          },
+          "format": {
+            "$ref": "#/components/schemas/AudioFormat"
+          },
+          "speed": {
+            "type": "number",
+            "default": 1.0,
+            "minimum": 0.5,
+            "maximum": 2.0
+          },
+          "stream": {
+            "type": "boolean",
+            "default": false
+          },
+          "instruct_text": {
+            "type": "string",
+            "description": "V3 only: Instruction for voice control"
+          },
+          "prompt_audio": {
+            "type": "string",
+            "format": "binary",
+            "description": "Reference audio file"
+          }
+        }
+      },
+      "CrossLingualWithCacheRequest": {
+        "type": "object",
+        "required": ["text", "voice_id"],
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Text to synthesize",
+            "maxLength": 2000
+          },
+          "voice_id": {
+            "type": "string",
+            "description": "Cached voice ID"
+          },
+          "format": {
+            "$ref": "#/components/schemas/AudioFormat"
+          },
+          "speed": {
+            "type": "number",
+            "default": 1.0,
+            "minimum": 0.5,
+            "maximum": 2.0
+          },
+          "stream": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "InstructSynthesisRequest": {
+        "type": "object",
+        "required": ["text", "instruct_text", "prompt_audio"],
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Text to synthesize"
+          },
+          "instruct_text": {
+            "type": "string",
+            "description": "Instruction for voice control"
+          },
+          "format": {
+            "$ref": "#/components/schemas/AudioFormat"
+          },
+          "speed": {
+            "type": "number",
+            "default": 1.0
+          },
+          "stream": {
+            "type": "boolean",
+            "default": false
+          },
+          "prompt_audio": {
+            "type": "string",
+            "format": "binary"
+          }
+        }
+      },
+      "SynthesisResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "audio_url": {
+            "type": "string",
+            "description": "URL to download audio"
+          },
+          "file_path": {
+            "type": "string"
+          },
+          "duration": {
+            "type": "number",
+            "description": "Audio duration in seconds"
+          },
+          "format": {
+            "$ref": "#/components/schemas/AudioFormat"
+          },
+          "synthesis_time": {
+            "type": "number",
+            "description": "Processing time in seconds"
+          }
+        }
+      },
+      "TaskRequest": {
+        "type": "object",
+        "required": ["text", "voice_id"],
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "voice_id": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string",
+            "default": "wav"
+          },
+          "speed": {
+            "type": "number",
+            "default": 1.0,
+            "minimum": 0.5,
+            "maximum": 2.0
+          },
+          "instruct_text": {
+            "type": "string"
+          }
+        }
+      },
+      "TaskResponse": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["registered", "processing", "completed", "failed"]
+          },
+          "file_path": {
+            "type": "string"
+          },
+          "audio_url": {
+            "type": "string"
+          },
+          "estimated_duration": {
+            "type": "number"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "TaskStatusResponse": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["registered", "processing", "completed", "failed"]
+          },
+          "file_path": {
+            "type": "string"
+          },
+          "audio_url": {
+            "type": "string"
+          },
+          "progress": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "duration": {
+            "type": "number"
+          },
+          "synthesis_time": {
+            "type": "number"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "error_message": {
+            "type": "string"
+          }
+        }
+      },
+      "StreamingSynthesisRequest": {
+        "type": "object",
+        "required": ["text", "voice_id"],
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "voice_id": {
+            "type": "string"
+          },
+          "format": {
+            "$ref": "#/components/schemas/AudioFormat"
+          },
+          "speed": {
+            "type": "number",
+            "default": 1.0,
+            "minimum": 0.5,
+            "maximum": 2.0
+          },
+          "quality": {
+            "$ref": "#/components/schemas/StreamingQuality"
+          },
+          "chunk_size": {
+            "type": "integer",
+            "default": 1024,
+            "minimum": 256,
+            "maximum": 8192
+          }
+        }
+      },
+      "CapabilitiesResponse": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "features": {
+            "type": "object",
+            "properties": {
+              "languages": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "chinese_dialects": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "instruct_support": {
+                "type": "boolean"
+              },
+              "phoneme_support": {
+                "type": "object"
+              },
+              "streaming": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "latency_ms": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "WebSocketMessage": {
+        "type": "object",
+        "properties": {
+          "message_type": {
+            "type": "string",
+            "enum": ["text_request", "synthesis_start", "audio_chunk", "synthesis_complete", "error", "ping", "pong"]
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "number"
+          }
+        }
+      }
+    }
+  }
+}

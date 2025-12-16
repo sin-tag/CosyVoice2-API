@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     
     # Server settings
     HOST: str = Field(default="0.0.0.0", env="HOST")
-    PORT: int = Field(default=8000, env="PORT")
+    PORT: int = Field(default=8012, env="PORT")
     DEBUG: bool = Field(default=False, env="DEBUG")
     
     # CORS settings
@@ -48,11 +48,32 @@ class Settings(BaseSettings):
         env="ALLOWED_ORIGINS"
     )
     
-    # Model settings
+    # Model settings - CosyVoice2 (v2)
     MODEL_DIR: str = Field(
         default="models/CosyVoice2-0.5B",
         env="MODEL_DIR",
-        description="Path to CosyVoice model directory"
+        description="Path to CosyVoice2 model directory"
+    )
+
+    # Model settings - CosyVoice3 (v3)
+    MODEL_DIR_V3: str = Field(
+        default="models/Fun-CosyVoice3-0.5B",
+        env="MODEL_DIR_V3",
+        description="Path to CosyVoice3 model directory"
+    )
+
+    # HuggingFace model ID for auto-download
+    COSYVOICE3_HF_REPO: str = Field(
+        default="FunAudioLLM/Fun-CosyVoice3-0.5B-2512",
+        env="COSYVOICE3_HF_REPO",
+        description="HuggingFace repo ID for CosyVoice3 model"
+    )
+
+    # Auto-download settings
+    AUTO_DOWNLOAD_MODELS: bool = Field(
+        default=True,
+        env="AUTO_DOWNLOAD_MODELS",
+        description="Auto-download models from HuggingFace if not found"
     )
     
     # Voice cache settings

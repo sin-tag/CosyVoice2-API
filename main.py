@@ -240,9 +240,13 @@ from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
 from app.core.voice_manager import VoiceManager
+from app.core.voice_manager_v3 import VoiceManagerV3
 from app.core.synthesis_engine import SynthesisEngine
 from app.core.async_synthesis_manager import AsyncSynthesisManager
-from app.api.v1.router import api_router
+from app.core.model_downloader import ensure_cosyvoice3_model
+from app.api.v1.router import api_router  # Keep v1 for backward compatibility
+from app.api.v2.router import api_router_v2
+from app.api.v3.router import api_router_v3
 from app.core.exceptions import setup_exception_handlers
 
 # Configure logging
@@ -254,15 +258,16 @@ logger = logging.getLogger(__name__)
 
 # Global instances
 voice_manager: VoiceManager = None
+voice_manager_v3: VoiceManagerV3 = None
 async_synthesis_manager: AsyncSynthesisManager = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager"""
-    global voice_manager, async_synthesis_manager
+    global voice_manager, voice_manager_v3, async_synthesis_manager
 
-    logger.info("Starting CosyVoice2 API server...")
+    logger.info("Starting CosyVoice API server (v2 + v3)...")
 
     # Configure thread pool for MAXIMUM parallelism
     loop = asyncio.get_event_loop()
@@ -274,32 +279,65 @@ async def lifespan(app: FastAPI):
     logger.info(f"Thread pool configured with {executor._max_workers} workers for unlimited parallel processing")
 
     try:
-        # Initialize voice manager
+        # ===============================
+        # Initialize CosyVoice2 (v2) - Legacy
+        # ===============================
         voice_manager = VoiceManager(
             model_dir=settings.MODEL_DIR,
             cache_dir=settings.VOICE_CACHE_DIR
         )
 
-        # Load cached voices on startup
         await voice_manager.initialize()
-        logger.info("Voice manager initialized successfully")
+        logger.info("CosyVoice2 voice manager initialized successfully")
 
-        # Initialize async synthesis manager
-        logger.info("Initializing async synthesis manager...")
+        # Initialize async synthesis manager for v2
+        logger.info("Initializing async synthesis manager (v2)...")
         synthesis_engine = SynthesisEngine(voice_manager)
-        # NO LIMITS - unlimited parallel processing!
         async_synthesis_manager = AsyncSynthesisManager(synthesis_engine, max_concurrent=999)
         await async_synthesis_manager.start()
-        logger.info("Async synthesis manager initialized for unlimited parallel processing")
+        logger.info("Async synthesis manager (v2) initialized for unlimited parallel processing")
 
-        # Set dependencies for task-based API
+        # Set dependencies for task-based API (v2)
         from app.dependencies import set_synthesis_engine, set_voice_manager
         set_synthesis_engine(synthesis_engine)
         set_voice_manager(voice_manager)
 
-        # Store in app state for access in routes
+        # Store v2 in app state
         app.state.voice_manager = voice_manager
         app.state.async_synthesis_manager = async_synthesis_manager
+
+        # ===============================
+        # Initialize CosyVoice3 (v3) - Latest
+        # ===============================
+        logger.info("Initializing CosyVoice3 (v3)...")
+
+        # Auto-download CosyVoice3 model if enabled
+        if settings.AUTO_DOWNLOAD_MODELS:
+            logger.info("Checking CosyVoice3 model availability...")
+            model_ready = ensure_cosyvoice3_model(
+                settings.MODEL_DIR_V3,
+                settings.COSYVOICE3_HF_REPO,
+                auto_download=True
+            )
+            if model_ready:
+                logger.info("CosyVoice3 model is ready")
+            else:
+                logger.warning("CosyVoice3 model not available - v3 API will be disabled")
+
+        # Initialize CosyVoice3 voice manager
+        try:
+            voice_manager_v3 = VoiceManagerV3(
+                model_dir=settings.MODEL_DIR_V3,
+                cache_dir=settings.VOICE_CACHE_DIR
+            )
+            await voice_manager_v3.initialize()
+            logger.info("CosyVoice3 voice manager initialized successfully")
+
+            # Store v3 in app state
+            app.state.voice_manager_v3 = voice_manager_v3
+        except Exception as e:
+            logger.warning(f"CosyVoice3 initialization failed (v3 API disabled): {e}")
+            voice_manager_v3 = None
 
         yield
 
@@ -307,25 +345,44 @@ async def lifespan(app: FastAPI):
         logger.error(f"Failed to initialize application: {e}")
         raise
     finally:
-        logger.info("Shutting down CosyVoice2 API server...")
+        logger.info("Shutting down CosyVoice API server...")
         if async_synthesis_manager:
             await async_synthesis_manager.stop()
         if voice_manager:
             await voice_manager.cleanup()
+        if voice_manager_v3:
+            await voice_manager_v3.cleanup()
 
 
 def create_app() -> FastAPI:
     """Create and configure FastAPI application"""
-    
+
     app = FastAPI(
-        title="CosyVoice2 跨语种复刻 API",
-        description="跨语种复刻 API - Cross-lingual Voice Cloning with CosyVoice2-0.5B",
-        version="2.0.0",
+        title="CosyVoice API (v2 + v3)",
+        description="""
+# CosyVoice Cross-lingual Voice Cloning API
+
+This API provides both CosyVoice2 (v2) and CosyVoice3 (v3) endpoints.
+
+## API Versions
+
+- **v1/v2**: CosyVoice2-0.5B (Legacy support)
+- **v3**: CosyVoice3-0.5B (Latest - Improved quality, 9+ languages, instruct support)
+
+## CosyVoice3 Features
+
+- 9+ languages: Chinese, English, Japanese, Korean, German, Spanish, French, Italian, Russian
+- 18+ Chinese dialects
+- Instruction-based voice control (dialect, emotion, speed, volume)
+- ~150ms streaming latency
+- Better content consistency and speaker similarity
+        """,
+        version="3.0.0",
         docs_url="/docs",
         redoc_url="/redoc",
         lifespan=lifespan
     )
-    
+
     # Add CORS middleware
     app.add_middleware(
         CORSMiddleware,
@@ -334,54 +391,79 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    
+
     # Setup exception handlers
     setup_exception_handlers(app)
-    
-    # Include API routes
+
+    # Include API routes - v1 (backward compatibility, same as v2)
     app.include_router(api_router, prefix="/api/v1")
 
+    # Include API routes - v2 (CosyVoice2)
+    app.include_router(api_router_v2, prefix="/api/v2")
+
+    # Include API routes - v3 (CosyVoice3)
+    app.include_router(api_router_v3, prefix="/api/v3")
+
     # Mount static files for audio serving
-    app.mount("/api/v1/audio", StaticFiles(directory="outputs"), name="audio")
+    app.mount("/api/v1/audio", StaticFiles(directory="outputs"), name="audio_v1")
+    app.mount("/api/v2/audio", StaticFiles(directory="outputs"), name="audio_v2")
+    app.mount("/api/v3/audio", StaticFiles(directory="outputs"), name="audio_v3")
 
     @app.get("/")
     async def root():
         return {
-            "message": "CosyVoice2 跨语种复刻 API Server with Streaming Support",
-            "description": "Cross-lingual Voice Cloning with CosyVoice2-0.5B - Now with real-time streaming!",
-            "version": "2.1.0",
+            "message": "CosyVoice API Server (v2 + v3)",
+            "description": "Cross-lingual Voice Cloning with CosyVoice2 and CosyVoice3",
+            "version": "3.0.0",
             "docs": "/docs",
-            "endpoints": {
-                "voice_management": "/api/v1/voices/",
-                "cross_lingual_with_audio": "/api/v1/cross-lingual/with-audio",
-                "cross_lingual_with_cache": "/api/v1/cross-lingual/with-cache",
-                "streaming_synthesis": "/api/v1/streaming/cross-lingual",
-                "chunked_streaming": "/api/v1/streaming/cross-lingual/chunked",
-                "websocket_streaming": "/api/v1/ws/stream",
-                "streaming_health": "/api/v1/streaming/health",
-                "websocket_sessions": "/api/v1/ws/sessions"
+            "api_versions": {
+                "v1": "CosyVoice2 (backward compatibility)",
+                "v2": "CosyVoice2-0.5B (Legacy)",
+                "v3": "CosyVoice3-0.5B (Latest - Recommended)"
             },
-            "features": [
-                "Cross-lingual voice cloning",
-                "Real-time HTTP streaming",
-                "WebSocket bidirectional streaming",
-                "Multiple concurrent streams",
-                "Async task processing",
-                "Multiple audio formats (WAV, MP3, FLAC, M4A)",
-                "Streaming quality optimization",
-                "Comprehensive error handling"
+            "v2_endpoints": {
+                "voice_management": "/api/v2/voices/",
+                "cross_lingual_with_audio": "/api/v2/cross-lingual/with-audio",
+                "cross_lingual_with_cache": "/api/v2/cross-lingual/with-cache",
+                "streaming_synthesis": "/api/v2/streaming/cross-lingual",
+                "websocket_streaming": "/api/v2/ws/stream"
+            },
+            "v3_endpoints": {
+                "voice_management": "/api/v3/voices/",
+                "cross_lingual_with_audio": "/api/v3/cross-lingual/with-audio",
+                "cross_lingual_with_cache": "/api/v3/cross-lingual/with-cache",
+                "instruct_synthesis": "/api/v3/cross-lingual/instruct",
+                "streaming_synthesis": "/api/v3/streaming/cross-lingual",
+                "websocket_streaming": "/api/v3/ws/stream",
+                "capabilities": "/api/v3/cross-lingual/capabilities"
+            },
+            "v3_features": [
+                "9+ languages support",
+                "18+ Chinese dialects",
+                "Instruction-based voice control",
+                "~150ms streaming latency",
+                "Better content consistency",
+                "Improved speaker similarity",
+                "More natural prosody"
             ]
         }
-    
+
     @app.get("/health")
     async def health_check():
         """Health check endpoint"""
+        v3_ready = voice_manager_v3 is not None and voice_manager_v3.is_ready() if voice_manager_v3 else False
         return {
             "status": "healthy",
-            "voice_manager_ready": voice_manager is not None and voice_manager.is_ready(),
-            "api_mode": "跨语种复刻 (Cross-lingual Voice Cloning)"
+            "v2": {
+                "ready": voice_manager is not None and voice_manager.is_ready(),
+                "model": "CosyVoice2-0.5B"
+            },
+            "v3": {
+                "ready": v3_ready,
+                "model": "CosyVoice3-0.5B" if v3_ready else "Not loaded"
+            }
         }
-    
+
     return app
 
 

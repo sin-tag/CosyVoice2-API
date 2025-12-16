@@ -1,426 +1,364 @@
-# CosyVoice2 API with Real-time Streaming
+# CosyVoice API (v2 + v3) - Cross-lingual Voice Cloning
 
-A FastAPI-based REST API for CosyVoice2 voice cloning and text-to-speech synthesis with **real-time streaming capabilities**.
+A FastAPI-based REST API for CosyVoice voice cloning and text-to-speech synthesis with **real-time streaming capabilities**.
 
-## 🚀 New Streaming Features
+Supports both **CosyVoice2** (v2 - Legacy) and **CosyVoice3** (v3 - Latest, Recommended).
 
-- **🎵 Real-time HTTP Streaming**: Stream audio chunks as they're generated for low-latency synthesis
-- **🔄 WebSocket Bidirectional Streaming**: Full-duplex communication for interactive voice applications
-- **⚡ Multiple Concurrent Streams**: Handle up to 10+ simultaneous streaming requests
-- **🎚️ Quality Optimization**: Configurable streaming quality (Low/Medium/High) for different use cases
-- **🛡️ Comprehensive Error Handling**: Robust error recovery and graceful degradation
-- **📊 Performance Monitoring**: Real-time statistics and health checks for streaming services
+## API Versions
 
-## Core Features
+| Version | Model | Description |
+|---------|-------|-------------|
+| v1 | CosyVoice2-0.5B | Backward compatibility |
+| v2 | CosyVoice2-0.5B | Legacy support |
+| **v3** | **CosyVoice3-0.5B** | **Latest - Recommended** |
 
-- **Voice Cache Management**: CRUD operations for managing cached voices
-- **Multiple Audio Formats**: Support for MP3, WAV, FLAC, and M4A formats
-- **Voice Cloning**: Zero-shot voice cloning with 3-second audio samples
-- **Cross-lingual Support**: Multi-language voice synthesis
-- **Async Processing**: High-performance async API endpoints with multi-threading
-- **Auto-loading**: Automatic loading of cached voices on startup
-- **Prompt Text Support**: Custom prompt text for better voice reference
-- **Instruct Mode**: Emotional and style control through instruction text
-- **Linux Setup Script**: Automated environment setup for Linux systems
+## CosyVoice3 Features (v3)
+
+- **9+ languages**: Chinese, English, Japanese, Korean, German, Spanish, French, Italian, Russian
+- **18+ Chinese dialects**: Cantonese, Sichuan, Shanghai, Hokkien, Hakka, and more
+- **Instruction-based voice control**: Control dialect, emotion, speed, volume via natural language
+- **~150ms streaming latency**: Ultra-low latency for real-time applications
+- **Better quality**: Improved content consistency and speaker similarity
 
 ## Quick Start
 
-### 🚀 One-Command Setup and Run
+### Run the Server
 
-Choose your preferred deployment method:
-
-#### Option 1: Docker (Recommended)
-```bash
-# Clone the repository
-git clone https://github.com/sin-tag/CosyVoice2-API.git
-cd CosyVoice2-API
-
-# Place your CosyVoice2 model in pretrained_models/CosyVoice2-0.5B/
-
-# Build and run with Docker Compose
-docker-compose up --build
-
-# Access API at http://localhost:8012/docs
-```
-
-#### Option 2: Native Installation
-The easiest way to get started is using our automated setup script:
-
-##### For Linux/macOS:
-```bash
-# Clone the repository
-git clone https://github.com/sin-tag/CosyVoice2-API.git
-cd CosyVoice2-API
-
-# Option 1: Complete environment setup (first time)
-./setup_env.sh
-
-# Option 2: Quick start (after setup)
-./run.sh
-
-# Option 3: Python fast start
-python run_fast.py
-```
-
-##### For Windows:
-```batch
-# Clone the repository
-git clone https://github.com/sin-tag/CosyVoice2-API.git
-cd CosyVoice2-API
-
-# Run the automated setup and server script
-run_server.bat
-```
-
-The script will automatically:
-- ✅ Check Python version (3.10+ recommended)
-- ✅ Create and activate virtual environment
-- ✅ Install all required dependencies
-- ✅ Setup model directories
-- ✅ Clean up unnecessary files
-- ✅ Start the API server
-
-### 📋 Script Options
-
-```bash
-# Custom host and port
-./run_server.sh --host 127.0.0.1 --port 8080
-
-# Skip setup if already configured
-./run_server.sh --skip-setup
-
-# Multiple workers
-./run_server.sh --workers 2
-
-# Show help
-./run_server.sh --help
-```
-
-### 1. Manual Installation Options
-
-#### Option A: Using Conda (Recommended)
+#### Option 1: Direct Python (Recommended)
 
 ```bash
 # Clone the repository
 git clone https://github.com/sin-tag/CosyVoice2-API.git
 cd CosyVoice2-API
 
-# Create conda environment with Python 3.10
-conda env create -f environment.yml
-conda activate cosyvoice2-api
-```
-
-#### Option B: Using Virtual Environment
-
-```bash
-# Clone the repository
-git clone https://github.com/sin-tag/CosyVoice2-API.git
-cd CosyVoice2-API
-
-# Create virtual environment
+# Create and activate virtual environment
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate  # Linux/macOS
+# or
+venv\Scripts\activate     # Windows
 
 # Install dependencies
 pip install -r requirements.txt
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
-```
 
-#### Option C: Using Docker
-
-```bash
-# Clone and start with Docker Compose
-git clone https://github.com/sin-tag/CosyVoice2-API.git
-cd CosyVoice2-API
-docker-compose up -d
-```
-
-### 2. Configuration
-
-```bash
-# Copy environment configuration
-cp .env.example .env
-
-# Edit configuration as needed
-nano .env
-```
-
-### 3. Download Models
-
-Download the CosyVoice2 model:
-
-```bash
-# Using the provided script (recommended)
-python scripts/download_model.py
-
-# Or manually download and extract to models/CosyVoice2-0.5B/
-```
-
-### 4. Run the Server
-
-#### Method 1: Using Startup Scripts (Recommended)
-```bash
-# Activate your environment first
-conda activate cosyvoice2-api  # or source venv/bin/activate
-
-# Use the robust startup script
-./start_server.sh
-
-# Or use the Python launcher
-python run_server.py
-```
-
-#### Method 2: Direct Python
-```bash
-# Activate environment
-conda activate cosyvoice2-api  # or source venv/bin/activate
-
-# Test imports first (recommended)
-python test_imports.py
-
-# Start the server
+# Run the server (default port: 8012)
 python main.py
 ```
 
-#### Method 3: Production Mode
-```bash
-# Using Gunicorn (install first: pip install gunicorn)
-gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
+#### Option 2: Using Shell Script (Linux/macOS)
 
-# Or using Uvicorn directly
-uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
+```bash
+# Run with default settings
+./run_server.sh
+
+# Run with custom port
+./run_server.sh --port 8080
+
+# Run with custom host
+./run_server.sh --host 127.0.0.1 --port 8012
 ```
 
-The API will be available at `http://localhost:8000`
+#### Option 3: Using Uvicorn Directly
 
-- API Documentation: `http://localhost:8000/docs`
-- Alternative Docs: `http://localhost:8000/redoc`
+```bash
+# Development mode
+uvicorn main:app --host 0.0.0.0 --port 8012 --reload
+
+# Production mode with multiple workers
+uvicorn main:app --host 0.0.0.0 --port 8012 --workers 4
+```
+
+#### Option 4: Using Docker
+
+```bash
+# Build and run with Docker Compose
+docker-compose up --build
+```
+
+### Access the API
+
+Once the server is running:
+
+- **API Base URL**: http://localhost:8012
+- **Swagger UI Documentation**: http://localhost:8012/docs
+- **ReDoc Documentation**: http://localhost:8012/redoc
+- **Health Check**: http://localhost:8012/health
+- **OpenAPI JSON**: http://localhost:8012/openapi.json
+
+## Configuration
+
+Copy the example environment file and customize as needed:
+
+```bash
+cp .env.example .env
+```
+
+Key configuration options:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| HOST | 0.0.0.0 | Server host |
+| PORT | 8012 | Server port |
+| DEBUG | false | Debug mode |
+| MODEL_DIR | models/CosyVoice2-0.5B | CosyVoice2 model path |
+| MODEL_DIR_V3 | models/Fun-CosyVoice3-0.5B | CosyVoice3 model path |
+| AUTO_DOWNLOAD_MODELS | true | Auto-download models from HuggingFace |
+
+## Model Setup
+
+### Automatic Download (Recommended)
+
+Set `AUTO_DOWNLOAD_MODELS=true` in `.env` and the server will automatically download models from HuggingFace on first run.
+
+### Manual Download
+
+```bash
+# CosyVoice2
+# Download from HuggingFace and place in models/CosyVoice2-0.5B/
+
+# CosyVoice3
+# Download from https://huggingface.co/FunAudioLLM/Fun-CosyVoice3-0.5B-2512
+# Place in models/Fun-CosyVoice3-0.5B/
+```
 
 ## API Endpoints
 
-### 🎵 Streaming Synthesis (NEW!)
-
-- `POST /api/v1/streaming/cross-lingual` - Real-time HTTP streaming synthesis
-- `POST /api/v1/streaming/cross-lingual/chunked` - Chunked streaming synthesis
-- `WebSocket /api/v1/ws/stream` - Bidirectional WebSocket streaming
-- `GET /api/v1/streaming/health` - Streaming service health check
-- `GET /api/v1/streaming/stats` - Streaming performance statistics
-- `GET /api/v1/ws/sessions` - Active WebSocket sessions
-
 ### Voice Management
 
-- `GET /api/v1/voices/` - List all cached voices
-- `POST /api/v1/voices/` - Add a new voice to cache
-- `GET /api/v1/voices/{voice_id}` - Get voice details
-- `PUT /api/v1/voices/{voice_id}` - Update voice information
-- `DELETE /api/v1/voices/{voice_id}` - Remove voice from cache
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | /api/v3/voices/ | Create a new voice from audio sample |
+| GET | /api/v3/voices/ | List all cached voices |
+| GET | /api/v3/voices/{voice_id} | Get voice details |
+| PUT | /api/v3/voices/{voice_id} | Update voice information |
+| DELETE | /api/v3/voices/{voice_id} | Delete a voice |
 
-### Voice Synthesis
+### Cross-lingual Synthesis
 
-- `POST /api/v1/synthesize/sft` - Synthesize with pre-trained voices
-- `POST /api/v1/synthesize/zero-shot` - Zero-shot voice cloning
-- `POST /api/v1/synthesize/cross-lingual` - Cross-lingual synthesis
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | /api/v3/cross-lingual/with-audio | Synthesize with audio reference file |
+| POST | /api/v3/cross-lingual/with-cache | Synthesize with cached voice |
+| POST | /api/v3/cross-lingual/instruct | Synthesize with instruction control (v3 only) |
+| GET | /api/v3/cross-lingual/capabilities | Get CosyVoice3 capabilities (v3 only) |
 
-### System
+### Task-based Synthesis
 
-- `GET /` - API information
-- `GET /health` - Health check
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | /api/v3/cross-lingual/task | Create background synthesis task |
+| GET | /api/v3/cross-lingual/task/{task_id} | Get task status |
+| GET | /api/v3/cross-lingual/tasks | List all tasks |
+| DELETE | /api/v3/cross-lingual/task/{task_id} | Delete a task |
+
+### Scheduled Background Rendering (v3 only)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | /api/v3/schedule/register | Register task for later rendering |
+| POST | /api/v3/schedule/render/{task_id} | Start background rendering |
+| GET | /api/v3/schedule/status/{task_id} | Get task status and audio_url |
+| GET | /api/v3/schedule/tasks | List all scheduled tasks |
+| DELETE | /api/v3/schedule/task/{task_id} | Cancel/delete scheduled task |
+| POST | /api/v3/schedule/render-all | Batch render all pending tasks |
+| GET | /api/v3/schedule/queue-stats | Get queue statistics |
+
+### Streaming Synthesis
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | /api/v3/streaming/cross-lingual | HTTP streaming synthesis |
+| GET | /api/v3/streaming/cross-lingual/sse | Server-Sent Events streaming |
+| WS | /api/v3/ws/stream | WebSocket bidirectional streaming |
+| GET | /api/v3/streaming/health | Streaming service health check |
 
 ## Usage Examples
 
-### 🎵 Streaming Synthesis (NEW!)
-
-#### HTTP Streaming
-```python
-import aiohttp
-import asyncio
-
-async def stream_synthesis():
-    url = "http://localhost:8000/api/v1/streaming/cross-lingual"
-    data = {
-        "text": "Hello, this is real-time streaming synthesis!",
-        "voice_id": "my_voice_001",
-        "format": "wav",
-        "quality": "medium"
-    }
-
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, data=data) as response:
-            async for chunk in response.content.iter_chunked(1024):
-                # Process audio chunk in real-time
-                print(f"Received {len(chunk)} bytes")
-
-asyncio.run(stream_synthesis())
-```
-
-#### WebSocket Streaming
-```python
-import websockets
-import json
-import base64
-import asyncio
-
-async def websocket_synthesis():
-    uri = "ws://localhost:8000/api/v1/ws/stream"
-
-    async with websockets.connect(uri) as websocket:
-        # Send synthesis request
-        request = {
-            "message_type": "text_request",
-            "text": "Hello WebSocket streaming!",
-            "voice_id": "my_voice_001",
-            "format": "wav",
-            "quality": "high"
-        }
-
-        await websocket.send(json.dumps(request))
-
-        # Receive streaming audio
-        while True:
-            response = await websocket.recv()
-            message = json.loads(response)
-
-            if message["message_type"] == "audio_chunk":
-                audio_data = base64.b64decode(message["audio_data"])
-                print(f"Received audio chunk: {len(audio_data)} bytes")
-
-                if message["metadata"]["is_final"]:
-                    break
-
-asyncio.run(websocket_synthesis())
-```
-
-#### Test Streaming Demo
-```bash
-# Run the comprehensive streaming demo
-python examples/streaming_demo.py --voice-id my_voice_001 --concurrent 5
-
-# Test specific streaming features
-python examples/streaming_demo.py --voice-id my_voice_001 --skip-websocket
-```
-
-### Add Voice to Cache
+### Python
 
 ```python
 import requests
 
-# Upload voice sample
-with open("voice_sample.wav", "rb") as f:
-    files = {"audio_file": f}
-    data = {
-        "voice_id": "my_voice_001",
-        "name": "My Custom Voice",
-        "description": "A custom voice for testing",
-        "prompt_text": "Hello, this is a sample voice."
-    }
-    response = requests.post("http://localhost:8000/api/v1/voices/", files=files, data=data)
-```
-
-### Synthesize Speech
-
-```python
-import requests
-
-# Cross-lingual synthesis with cache (with prompt text support)
+# 1. Create a voice from audio sample
+files = {'audio_file': open('sample.wav', 'rb')}
 data = {
-    "text": "Hello, how are you today?",
-    "voice_id": "my_voice_001",
-    "prompt_text": "Custom prompt text for better voice reference",  # New feature
-    "instruct_text": "Please speak with a cheerful tone",  # Emotional control
-    "speed": 1.0,
-    "format": "wav"
+    'voice_id': 'my_voice',
+    'name': 'My Voice',
+    'voice_type': 'cross_lingual'
 }
-response = requests.post("http://localhost:8012/api/v1/cross-lingual/with-cache", json=data)
+response = requests.post('http://localhost:8012/api/v3/voices/', files=files, data=data)
+print(response.json())
 
-# Async synthesis (new feature)
-async_data = {
-    "text": "This will be processed in the background",
-    "voice_id": "my_voice_001",
-    "prompt_text": "Reference text",
-    "format": "wav"
+# 2. Synthesize with cached voice
+response = requests.post('http://localhost:8012/api/v3/cross-lingual/with-cache', json={
+    'text': 'Hello, this is a test of voice synthesis.',
+    'voice_id': 'my_voice',
+    'format': 'wav',
+    'speed': 1.0
+})
+result = response.json()
+audio_url = result['audio_url']
+print(f"Audio URL: http://localhost:8012{audio_url}")
+
+# 3. Download the audio file
+audio = requests.get(f'http://localhost:8012{audio_url}')
+with open('output.wav', 'wb') as f:
+    f.write(audio.content)
+
+# 4. Synthesize with instruction control (v3 only)
+files = {'prompt_audio': open('sample.wav', 'rb')}
+data = {
+    'text': 'Hello, how are you today?',
+    'instruct_text': 'Speak slowly with a happy tone',
+    'format': 'wav'
 }
-response = requests.post("http://localhost:8012/api/v1/cross-lingual/async", json=async_data)
-task_id = response.json()["task_id"]
+response = requests.post('http://localhost:8012/api/v3/cross-lingual/instruct', files=files, data=data)
+print(response.json())
+```
 
-# Check async task status
-status_response = requests.get(f"http://localhost:8012/api/v1/cross-lingual/async/{task_id}")
-print(status_response.json())
+### cURL
+
+```bash
+# Health check
+curl http://localhost:8012/health
+
+# Create voice
+curl -X POST http://localhost:8012/api/v3/voices/ \
+  -F "voice_id=my_voice" \
+  -F "name=My Voice" \
+  -F "voice_type=cross_lingual" \
+  -F "audio_file=@sample.wav"
+
+# Synthesize with cached voice
+curl -X POST http://localhost:8012/api/v3/cross-lingual/with-cache \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Hello world", "voice_id": "my_voice"}'
+
+# Download generated audio
+curl -O http://localhost:8012/api/v3/audio/v3_cache_abc12345.wav
+```
+
+### JavaScript/TypeScript
+
+```typescript
+// Create voice
+const formData = new FormData();
+formData.append('voice_id', 'my_voice');
+formData.append('name', 'My Voice');
+formData.append('voice_type', 'cross_lingual');
+formData.append('audio_file', audioFile);
+
+const response = await fetch('http://localhost:8012/api/v3/voices/', {
+  method: 'POST',
+  body: formData
+});
+
+// Synthesize
+const synthesisResponse = await fetch('http://localhost:8012/api/v3/cross-lingual/with-cache', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    text: 'Hello world',
+    voice_id: 'my_voice'
+  })
+});
+
+const { audio_url } = await synthesisResponse.json();
+
+// WebSocket streaming
+const ws = new WebSocket('ws://localhost:8012/api/v3/ws/stream');
+ws.onopen = () => {
+  ws.send(JSON.stringify({
+    message_type: 'text_request',
+    request_id: 'req_1',
+    text: 'Hello world',
+    voice_id: 'my_voice'
+  }));
+};
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  if (data.message_type === 'audio_chunk') {
+    // Process audio chunk
+    const audioData = atob(data.audio_data);
+  }
+};
 ```
 
 ## Project Structure
 
 ```
 CosyVoice2-API/
-├── main.py                 # FastAPI application entry point
-├── requirements.txt        # Python dependencies
-├── .env.example           # Environment configuration template
-├── README.md              # This file
-├── app/                   # Application package
-│   ├── __init__.py
-│   ├── core/              # Core application logic
-│   │   ├── config.py      # Configuration settings
-│   │   ├── voice_manager.py # Voice management logic
-│   │   └── exceptions.py  # Exception handlers
-│   ├── api/               # API routes
-│   │   └── v1/            # API version 1
-│   │       ├── router.py  # Main router
-│   │       ├── voices.py  # Voice management endpoints
-│   │       └── synthesis.py # Synthesis endpoints
-│   ├── models/            # Pydantic models
-│   │   ├── voice.py       # Voice data models
-│   │   └── synthesis.py   # Synthesis request/response models
-│   └── utils/             # Utility functions
-│       ├── audio.py       # Audio processing utilities
-│       └── file_utils.py  # File handling utilities
-├── cosyvoice_original/    # Original CosyVoice repository
-├── voice_cache/           # Cached voice data
-├── outputs/               # Generated audio files
-└── models/                # CosyVoice model files
+├── main.py                     # FastAPI application entry point
+├── requirements.txt            # Python dependencies
+├── .env                        # Environment configuration
+├── .env.example               # Environment template
+├── API_DOCUMENTATION.md       # Detailed API documentation
+├── openapi_schema.json        # OpenAPI 3.0 schema for integration
+├── app/
+│   ├── core/
+│   │   ├── config.py          # Configuration settings
+│   │   ├── voice_manager.py   # Voice manager for v2
+│   │   ├── voice_manager_v3.py # Voice manager for v3
+│   │   ├── synthesis_engine.py # Synthesis engine for v2
+│   │   ├── synthesis_engine_v3.py # Synthesis engine for v3
+│   │   └── model_downloader.py # Auto-download from HuggingFace
+│   ├── api/
+│   │   ├── v1/                # API v1 (backward compatibility)
+│   │   ├── v2/                # API v2 (CosyVoice2)
+│   │   └── v3/                # API v3 (CosyVoice3)
+│   └── models/                # Pydantic models
+├── cosyvoice_original/        # Original CosyVoice repository
+├── voice_cache/               # Cached voice data
+├── outputs/                   # Generated audio files
+└── models/                    # CosyVoice model files
+    ├── CosyVoice2-0.5B/      # CosyVoice2 model
+    └── Fun-CosyVoice3-0.5B/  # CosyVoice3 model
 ```
-
-## Documentation
-
-### Setup Guides
-- **[Conda Setup Guide](CONDA_SETUP.md)** - Comprehensive conda-based installation
-- **[Quick Start Guide](QUICK_START.md)** - Get running in minutes
-- **[Troubleshooting Guide](TROUBLESHOOTING.md)** - Fix common issues
-- **[Docker Deployment](DEPLOYMENT.md)** - Docker and production deployment
-
-### API Documentation
-- **[API Examples](docs/API_EXAMPLES.md)** - Detailed API usage examples
-- **[🎵 Streaming API Guide](docs/STREAMING_API.md)** - Complete streaming functionality documentation
-- **[WebSocket Streaming](docs/STREAMING_API.md#websocket-endpoints)** - Real-time bidirectional streaming
-- **[Performance Optimization](docs/STREAMING_API.md#performance-optimization)** - Streaming performance tips
 
 ## System Requirements
 
-- **Python**: 3.9+
+- **Python**: 3.9+ (3.10 recommended)
 - **GPU**: CUDA-compatible GPU recommended (NVIDIA GTX 1060+ or better)
 - **RAM**: 8GB minimum, 16GB+ recommended
 - **Storage**: 10GB+ for models and cache
 - **OS**: Linux (Ubuntu 18.04+), macOS, Windows 10+
 
+## Documentation
+
+- **[API Documentation](API_DOCUMENTATION.md)** - Detailed API reference
+- **[OpenAPI Schema](openapi_schema.json)** - For API integration
+- **Swagger UI**: http://localhost:8012/docs (when server is running)
+
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Pydantic Import Error**: Run `python scripts/fix_dependencies.py`
-2. **CUDA not available**: Install proper NVIDIA drivers and CUDA toolkit
-3. **Audio processing errors**: Install ffmpeg system package
-4. **Model download fails**: Check internet connection and disk space
-5. **Import errors**: Ensure all dependencies are installed in the correct environment
+1. **Pydantic Import Error**:
+   ```bash
+   pip install pydantic-settings>=2.0.0
+   ```
 
-For detailed solutions, see **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)**
+2. **CUDA not available**: Install proper NVIDIA drivers and CUDA toolkit
+
+3. **Model not found**: Set `AUTO_DOWNLOAD_MODELS=true` in `.env` or manually download models
+
+4. **Port already in use**: Change PORT in `.env` or use `--port` flag
+
+5. **Import errors**: Ensure all dependencies are installed:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
 ### Getting Help
 
-- Check the [Docker Setup Guide](DOCKER.md) for containerized deployment
-- Check the [Conda Setup Guide](CONDA_SETUP.md) for detailed installation steps
-- Review [API Examples](docs/API_EXAMPLES.md) for usage examples
-- Check the [Deployment Guide](DEPLOYMENT.md) for production setup
+- Check the [API Documentation](API_DOCUMENTATION.md) for detailed endpoint information
+- Use `/health` endpoint to check model status
+- Check server logs for detailed error messages
 
 ## License
 
 This project is licensed under the Apache License 2.0 - see the original CosyVoice repository for details.
+
+## Credits
+
+- [CosyVoice](https://github.com/FunAudioLLM/CosyVoice) - Original TTS model by FunAudioLLM
+- [HuggingFace](https://huggingface.co/FunAudioLLM) - Model hosting
