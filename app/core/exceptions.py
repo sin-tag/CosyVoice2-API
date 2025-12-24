@@ -1,5 +1,5 @@
 """
-Exception handlers for CosyVoice2 API
+Exception handlers for Chatterbox TTS API
 """
 
 import logging
@@ -33,7 +33,7 @@ class AudioProcessingError(VoiceManagerError):
 
 
 class ModelNotReadyError(VoiceManagerError):
-    """Exception raised when CosyVoice model is not ready"""
+    """Exception raised when Chatterbox model is not ready"""
     pass
 
 
@@ -108,6 +108,22 @@ def setup_exception_handlers(app: FastAPI):
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError):
         logger.warning(f"Validation error: {exc}")
+
+        # Serialize errors safely - convert non-serializable objects to strings
+        def serialize_error(error):
+            serialized = {}
+            for key, value in error.items():
+                if key == 'ctx' and isinstance(value, dict):
+                    # Convert context values to strings
+                    serialized[key] = {k: str(v) for k, v in value.items()}
+                elif isinstance(value, (str, int, float, bool, type(None), list, tuple)):
+                    serialized[key] = value
+                else:
+                    serialized[key] = str(value)
+            return serialized
+
+        safe_errors = [serialize_error(e) for e in exc.errors()]
+
         return JSONResponse(
             status_code=422,
             content={
@@ -115,7 +131,7 @@ def setup_exception_handlers(app: FastAPI):
                 "message": "Request validation failed",
                 "details": {
                     "path": str(request.url),
-                    "errors": exc.errors()
+                    "errors": safe_errors
                 }
             }
         )
