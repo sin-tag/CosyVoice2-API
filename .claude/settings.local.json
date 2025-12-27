@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nCreate Chatterbox-only branch: remove all CosyVoice code\n\n- Remove CosyVoice v1, v2, v3 API endpoints\n- Remove CosyVoice voice managers, synthesis engines, and streaming components\n- Keep only Chatterbox TTS \\(v4\\) API\n- Simplify main.py, config.py, and requirements.txt for Chatterbox only\n- Clean up dependencies and remove CosyVoice-specific code\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git add:*)",
+      "Bash(git reset:*)"
+    ]
+  }
+}

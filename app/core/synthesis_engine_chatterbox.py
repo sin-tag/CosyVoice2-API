@@ -63,7 +63,8 @@ class SynthesisEngineChatterbox:
         self,
         request: CrossLingualWithAudioRequest,
         exaggeration: float = 0.5,
-        cfg_weight: float = 0.5
+        cfg_weight: float = 0.5,
+        language: str = "en"
     ) -> SynthesisResponse:
         """
         Voice cloning synthesis with audio file
@@ -72,6 +73,7 @@ class SynthesisEngineChatterbox:
             request: Synthesis request with text and audio reference
             exaggeration: How much to exaggerate the voice characteristics (0.0-1.0)
             cfg_weight: Classifier-free guidance weight for original model (0.0-1.0)
+            language: Language code for multilingual model (e.g., "en", "zh", "ja")
         """
         try:
             model = self.voice_manager._get_active_model()
@@ -92,7 +94,8 @@ class SynthesisEngineChatterbox:
                 prompt_audio_path=prompt_audio_path,
                 output_path=output_path,
                 exaggeration=exaggeration,
-                cfg_weight=cfg_weight
+                cfg_weight=cfg_weight,
+                language=language
             )
 
             duration = await self._get_audio_duration(output_path)
@@ -115,7 +118,8 @@ class SynthesisEngineChatterbox:
         self,
         request: CrossLingualWithCacheRequest,
         exaggeration: float = 0.5,
-        cfg_weight: float = 0.5
+        cfg_weight: float = 0.5,
+        language: str = "en"
     ) -> SynthesisResponse:
         """Voice cloning synthesis with cached voice"""
         try:
@@ -148,7 +152,8 @@ class SynthesisEngineChatterbox:
                 prompt_audio_path=audio_path,
                 output_path=output_path,
                 exaggeration=exaggeration,
-                cfg_weight=cfg_weight
+                cfg_weight=cfg_weight,
+                language=language
             )
 
             duration = await self._get_audio_duration(output_path)
@@ -196,21 +201,31 @@ class SynthesisEngineChatterbox:
         prompt_audio_path: str,
         output_path: str,
         exaggeration: float = 0.5,
-        cfg_weight: float = 0.5
+        cfg_weight: float = 0.5,
+        language: str = "en"
     ) -> float:
         """Core synthesis with reference audio"""
         start_time = time.time()
+        model_type = self.voice_manager.model_type
 
         def _sync_synthesis():
             import torchaudio as ta
 
-            # ChatterboxTTS.generate(text, audio_prompt_path=..., exaggeration=..., cfg_weight=...)
-            wav = model.generate(
-                text,
-                audio_prompt_path=prompt_audio_path,
-                exaggeration=exaggeration,
-                cfg_weight=cfg_weight
-            )
+            if model_type == "multilingual":
+                # ChatterboxMultilingualTTS.generate(text, language_id=..., audio_prompt_path=...)
+                wav = model.generate(
+                    text,
+                    language_id=language,
+                    audio_prompt_path=prompt_audio_path
+                )
+            else:
+                # ChatterboxTTS.generate(text, audio_prompt_path=..., exaggeration=..., cfg_weight=...)
+                wav = model.generate(
+                    text,
+                    audio_prompt_path=prompt_audio_path,
+                    exaggeration=exaggeration,
+                    cfg_weight=cfg_weight
+                )
 
             # Save using model's sample rate
             ta.save(output_path, wav, model.sr)

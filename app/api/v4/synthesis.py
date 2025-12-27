@@ -39,6 +39,7 @@ async def synthesize_with_audio(
     format: AudioFormat = Form(AudioFormat.WAV, description="Output audio format"),
     exaggeration: float = Form(0.5, ge=0.0, le=1.0, description="Voice exaggeration factor"),
     cfg_weight: float = Form(0.5, ge=0.0, le=1.0, description="CFG weight (original model only)"),
+    language: str = Form("en", description="Language code for multilingual model (e.g., en, zh, ja, ko)"),
     synthesis_engine: SynthesisEngineChatterbox = Depends(get_synthesis_engine_chatterbox)
 ):
     """
@@ -57,6 +58,7 @@ async def synthesize_with_audio(
     ## Parameters
     - **exaggeration**: How much to exaggerate voice characteristics (0.0-1.0)
     - **cfg_weight**: Classifier-free guidance weight (only for original model)
+    - **language**: Language code for multilingual model (default: "en")
     """
     try:
         # Save uploaded audio to temp file
@@ -77,7 +79,8 @@ async def synthesize_with_audio(
             result = await synthesis_engine.synthesize_cross_lingual_with_audio(
                 request=request,
                 exaggeration=exaggeration,
-                cfg_weight=cfg_weight
+                cfg_weight=cfg_weight,
+                language=language
             )
 
             return result
@@ -101,6 +104,7 @@ async def synthesize_with_cache(
     format: AudioFormat = Form(AudioFormat.WAV, description="Output audio format"),
     exaggeration: float = Form(0.5, ge=0.0, le=1.0, description="Voice exaggeration factor"),
     cfg_weight: float = Form(0.5, ge=0.0, le=1.0, description="CFG weight (original model only)"),
+    language: str = Form("en", description="Language code for multilingual model (e.g., en, zh, ja, ko)"),
     synthesis_engine: SynthesisEngineChatterbox = Depends(get_synthesis_engine_chatterbox)
 ):
     """
@@ -124,7 +128,8 @@ async def synthesize_with_cache(
         result = await synthesis_engine.synthesize_cross_lingual_with_cache(
             request=request,
             exaggeration=exaggeration,
-            cfg_weight=cfg_weight
+            cfg_weight=cfg_weight,
+            language=language
         )
 
         return result
