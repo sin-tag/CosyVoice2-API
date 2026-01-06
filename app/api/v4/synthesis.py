@@ -181,6 +181,14 @@ async def synthesize_multilingual(
                    f"Current model: {voice_manager.model_type}"
         )
 
+    # Validate language code
+    supported_languages = voice_manager.get_language_codes()
+    if language not in supported_languages:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported language code: '{language}'. Supported: {', '.join(sorted(supported_languages))}"
+        )
+
     # Try to get prompt_audio from form data
     form = await request.form()
     prompt_audio = form.get("prompt_audio")
@@ -280,6 +288,22 @@ async def get_capabilities(
     return synthesis_engine.get_capabilities()
 
 
+@router.get("/languages", summary="Get supported languages")
+async def get_supported_languages(
+    voice_manager: VoiceManagerChatterbox = Depends(get_voice_manager_chatterbox)
+):
+    """
+    Get list of supported language codes for multilingual synthesis.
+
+    Returns a mapping of language codes to language names.
+    """
+    return {
+        "model_type": voice_manager.model_type,
+        "languages": voice_manager.get_supported_languages(),
+        "language_codes": voice_manager.get_language_codes()
+    }
+
+
 @router.get("/tags", summary="Get supported paralinguistic tags")
 async def get_supported_tags():
     """
@@ -350,6 +374,14 @@ async def synthesize_multilingual_async(
             status_code=400,
             detail="Multilingual synthesis requires ChatterboxMultilingual model. "
                    f"Current model: {voice_manager.model_type}"
+        )
+
+    # Validate language code
+    supported_languages = voice_manager.get_language_codes()
+    if language not in supported_languages:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported language code: '{language}'. Supported: {', '.join(sorted(supported_languages))}"
         )
 
     # Try to get prompt_audio from form data

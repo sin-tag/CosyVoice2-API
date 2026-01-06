@@ -212,26 +212,41 @@ class SynthesisEngineChatterbox:
         def _sync_synthesis():
             import torchaudio as ta
 
-            if model_type == "multilingual":
-                # ChatterboxMultilingualTTS.generate(text, language_id=..., audio_prompt_path=...)
-                wav = model.generate(
-                    text,
-                    language_id=language,
-                    audio_prompt_path=prompt_audio_path
-                )
-            else:
-                # ChatterboxTTS.generate(text, audio_prompt_path=..., exaggeration=..., cfg_weight=...)
-                wav = model.generate(
-                    text,
-                    audio_prompt_path=prompt_audio_path,
-                    exaggeration=exaggeration,
-                    cfg_weight=cfg_weight
-                )
+            logger.info(f"Synthesis: model_type={model_type}, lang={language}, text_len={len(text)}")
 
-            # Save using model's sample rate
-            ta.save(output_path, wav, model.sr)
+            try:
+                if model_type == "multilingual":
+                    # ChatterboxMultilingualTTS.generate(text, language_id=..., audio_prompt_path=...)
+                    wav = model.generate(
+                        text,
+                        language_id=language,
+                        audio_prompt_path=prompt_audio_path
+                    )
+                else:
+                    # ChatterboxTTS.generate(text, audio_prompt_path=..., exaggeration=..., cfg_weight=...)
+                    wav = model.generate(
+                        text,
+                        audio_prompt_path=prompt_audio_path,
+                        exaggeration=exaggeration,
+                        cfg_weight=cfg_weight
+                    )
 
-            return time.time() - start_time
+                # Save using model's sample rate
+                ta.save(output_path, wav, model.sr)
+                logger.info(f"Saved synthesis output to: {output_path}")
+
+                return time.time() - start_time
+
+            except RuntimeError as e:
+                error_msg = str(e)
+                if "CUDA" in error_msg or "device-side assert" in error_msg:
+                    logger.error(f"CUDA error during synthesis: {error_msg}")
+                    # Try to recover CUDA state
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                        torch.cuda.synchronize()
+                    raise SynthesisError(f"CUDA error: {error_msg}. Try restarting the server.")
+                raise
 
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, _sync_synthesis)
@@ -254,32 +269,55 @@ class SynthesisEngineChatterbox:
             language: Target language code (e.g., "en", "zh", "ja", "ko", etc.)
             exaggeration: Voice exaggeration factor
         """
+        # Validate language code
+        supported_languages = self.voice_manager.get_language_codes()
+        if language not in supported_languages:
+            logger.warning(f"Language '{language}' may not be supported. Supported: {supported_languages}")
+
         start_time = time.time()
 
         def _sync_synthesis():
             import torchaudio as ta
+            import torch
 
             model = self.voice_manager._get_active_model()
             if self.voice_manager.model_type != "multilingual":
                 raise ValueError("Multilingual synthesis requires ChatterboxMultilingual model")
 
-            # ChatterboxMultilingualTTS.generate(text, language_id=..., audio_prompt_path=...)
-            if prompt_audio_path and os.path.exists(prompt_audio_path):
-                wav = model.generate(
-                    text,
-                    language_id=language,
-                    audio_prompt_path=prompt_audio_path
-                )
-            else:
-                wav = model.generate(
-                    text,
-                    language_id=language
-                )
+            logger.info(f"Starting multilingual synthesis: lang={language}, text_len={len(text)}, audio={prompt_audio_path}")
 
-            # Save using model's sample rate
-            ta.save(output_path, wav, model.sr)
+            try:
+                # ChatterboxMultilingualTTS.generate(text, language_id=..., audio_prompt_path=...)
+                if prompt_audio_path and os.path.exists(prompt_audio_path):
+                    logger.info(f"Using audio prompt: {prompt_audio_path}")
+                    wav = model.generate(
+                        text,
+                        language_id=language,
+                        audio_prompt_path=prompt_audio_path
+                    )
+                else:
+                    logger.info("No audio prompt, using default voice")
+                    wav = model.generate(
+                        text,
+                        language_id=language
+                    )
 
-            return time.time() - start_time
+                # Save using model's sample rate
+                ta.save(output_path, wav, model.sr)
+                logger.info(f"Saved output to: {output_path}")
+
+                return time.time() - start_time
+
+            except RuntimeError as e:
+                error_msg = str(e)
+                if "CUDA" in error_msg or "device-side assert" in error_msg:
+                    logger.error(f"CUDA error during synthesis: {error_msg}")
+                    # Try to recover CUDA state
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                        torch.cuda.synchronize()
+                    raise SynthesisError(f"CUDA error: {error_msg}. Try restarting the server or using a shorter text.")
+                raise
 
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, _sync_synthesis)
