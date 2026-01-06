@@ -3,8 +3,11 @@ Synthesis endpoints for Chatterbox TTS (v4)
 Voice cloning synthesis with paralinguistic tags support
 """
 
+import asyncio
+import os
+import uuid
 from typing import Optional
-from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException, Request
+from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException, Request, BackgroundTasks
 
 from app.models.synthesis import (
     CrossLingualWithAudioRequest, CrossLingualWithCacheRequest,
@@ -12,6 +15,9 @@ from app.models.synthesis import (
 )
 from app.core.voice_manager_chatterbox import VoiceManagerChatterbox
 from app.core.synthesis_engine_chatterbox import SynthesisEngineChatterbox
+from app.core.async_task_manager import (
+    get_task_manager, AsyncTaskManager, SynthesisTask, TaskStatus
+)
 from app.core.exceptions import SynthesisError, VoiceNotFoundError, ModelNotReadyError
 from app.utils.file_utils import file_manager
 
@@ -313,4 +319,206 @@ async def get_supported_tags():
             }
         ],
         "usage_example": "Hello there! [laugh] That was really funny. [sigh] Anyway, let's continue."
+    }
+
+
+# ============================================
+# Async/Background Task Endpoints
+# ============================================
+
+@router.post("/multilingual/async", summary="Multilingual synthesis (background task)")
+async def synthesize_multilingual_async(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    text: str = Form(..., description="Text to synthesize"),
+    voice_id: Optional[str] = Form(None, description="Cached voice ID or name"),
+    language: str = Form("en", description="Target language code (e.g., en, zh, ja, ko)"),
+    format: AudioFormat = Form(AudioFormat.WAV, description="Output audio format"),
+    exaggeration: float = Form(0.5, ge=0.0, le=1.0, description="Voice exaggeration factor"),
+    voice_manager: VoiceManagerChatterbox = Depends(get_voice_manager_chatterbox),
+    synthesis_engine: SynthesisEngineChatterbox = Depends(get_synthesis_engine_chatterbox)
+):
+    """
+    Start multilingual synthesis as a background task.
+
+    Returns immediately with a task_id that can be used to check status.
+
+    Use GET /synthesis/tasks/{task_id} to check the task status.
+    """
+    if voice_manager.model_type != "multilingual":
+        raise HTTPException(
+            status_code=400,
+            detail="Multilingual synthesis requires ChatterboxMultilingual model. "
+                   f"Current model: {voice_manager.model_type}"
+        )
+
+    # Try to get prompt_audio from form data
+    form = await request.form()
+    prompt_audio = form.get("prompt_audio")
+    has_prompt_audio = prompt_audio and hasattr(prompt_audio, 'read') and hasattr(prompt_audio, 'filename')
+
+    if not voice_id and not has_prompt_audio:
+        raise HTTPException(
+            status_code=400,
+            detail="Must provide either voice_id or prompt_audio"
+        )
+
+    # Resolve audio path
+    audio_path = None
+    temp_audio_path = None
+
+    if voice_id:
+        cached_voice = await voice_manager.get_voice_by_id_or_name(voice_id)
+        if not cached_voice:
+            raise HTTPException(status_code=404, detail=f"Voice '{voice_id}' not found")
+        if not cached_voice.audio_file_path:
+            raise HTTPException(status_code=404, detail=f"Audio file for voice '{voice_id}' not found")
+
+        audio_path = cached_voice.audio_file_path
+        if not os.path.isabs(audio_path):
+            audio_path = os.path.abspath(audio_path)
+
+        if not os.path.exists(audio_path):
+            raise HTTPException(status_code=404, detail=f"Audio file not found at: {audio_path}")
+
+    elif has_prompt_audio:
+        # Save uploaded audio to permanent temp location (will be cleaned up after synthesis)
+        audio_content = await prompt_audio.read()
+        temp_audio_path = await file_manager.save_temp_file(
+            audio_content, f"async_{uuid.uuid4().hex[:8]}_{prompt_audio.filename or 'prompt.wav'}"
+        )
+        audio_path = temp_audio_path
+
+    # Create task
+    task_manager = get_task_manager()
+    task = await task_manager.create_task(
+        text=text,
+        voice_id=voice_id,
+        language=language,
+        format=format.value,
+        exaggeration=exaggeration
+    )
+
+    # Define the synthesis function
+    async def run_synthesis():
+        try:
+            output_filename = f"chatterbox_async_{task.task_id}_{uuid.uuid4().hex[:8]}.{format.value}"
+            output_path = file_manager.get_output_audio_path(output_filename)
+            file_manager.ensure_directory_exists(os.path.dirname(output_path))
+
+            synthesis_time = await synthesis_engine.synthesize_multilingual(
+                text=text,
+                prompt_audio_path=audio_path,
+                output_path=output_path,
+                language=language,
+                exaggeration=exaggeration
+            )
+
+            duration = await synthesis_engine._get_audio_duration(output_path)
+
+            return {
+                "audio_url": f"/api/v4/audio/{output_filename}",
+                "file_path": output_path,
+                "duration": duration,
+                "synthesis_time": synthesis_time
+            }
+        finally:
+            # Cleanup temp audio if used
+            if temp_audio_path and os.path.exists(temp_audio_path):
+                file_manager.delete_file(temp_audio_path)
+
+    # Run task in background
+    background_tasks.add_task(
+        task_manager.run_task,
+        task.task_id,
+        run_synthesis
+    )
+
+    return {
+        "success": True,
+        "task_id": task.task_id,
+        "status": task.status.value,
+        "message": "Task queued for processing",
+        "check_status_url": f"/api/v4/synthesis/tasks/{task.task_id}"
+    }
+
+
+@router.get("/tasks/{task_id}", summary="Get task status")
+async def get_task_status(task_id: str):
+    """
+    Get the status of a background synthesis task.
+
+    Returns task details including:
+    - status: pending, processing, completed, failed
+    - progress: 0.0-1.0
+    - audio_url: URL to download audio (when completed)
+    - error_message: Error details (when failed)
+    """
+    task_manager = get_task_manager()
+    task = await task_manager.get_task(task_id)
+
+    if not task:
+        raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
+
+    return {
+        "task_id": task.task_id,
+        "status": task.status.value,
+        "progress": task.progress,
+        "message": task.message,
+        "text": task.text,
+        "voice_id": task.voice_id,
+        "language": task.language,
+        "format": task.format,
+        "audio_url": task.audio_url,
+        "file_path": task.file_path,
+        "duration": task.duration,
+        "synthesis_time": task.synthesis_time,
+        "error_message": task.error_message,
+        "created_at": task.created_at.isoformat() if task.created_at else None,
+        "started_at": task.started_at.isoformat() if task.started_at else None,
+        "completed_at": task.completed_at.isoformat() if task.completed_at else None
+    }
+
+
+@router.get("/tasks", summary="List all tasks")
+async def list_tasks(
+    status: Optional[str] = None,
+    limit: int = 50
+):
+    """
+    List all synthesis tasks.
+
+    Optionally filter by status: pending, processing, completed, failed
+    """
+    task_manager = get_task_manager()
+
+    filter_status = None
+    if status:
+        try:
+            filter_status = TaskStatus(status)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid status. Must be one of: pending, processing, completed, failed"
+            )
+
+    tasks = await task_manager.list_tasks(status=filter_status, limit=limit)
+
+    return {
+        "tasks": [
+            {
+                "task_id": t.task_id,
+                "status": t.status.value,
+                "progress": t.progress,
+                "message": t.message,
+                "text": t.text[:50] + "..." if len(t.text) > 50 else t.text,
+                "voice_id": t.voice_id,
+                "language": t.language,
+                "audio_url": t.audio_url,
+                "created_at": t.created_at.isoformat() if t.created_at else None,
+                "completed_at": t.completed_at.isoformat() if t.completed_at else None
+            }
+            for t in tasks
+        ],
+        "total": len(tasks)
     }
