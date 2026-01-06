@@ -127,7 +127,8 @@ class SynthesisEngineChatterbox:
             if not model:
                 raise ModelNotReadyError("Chatterbox model not ready")
 
-            cached_voice = await self.voice_manager.get_voice(request.voice_id)
+            # Support both voice_id and voice name
+            cached_voice = await self.voice_manager.get_voice_by_id_or_name(request.voice_id)
             if not cached_voice:
                 raise VoiceNotFoundError(f"Cached voice '{request.voice_id}' not found")
 

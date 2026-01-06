@@ -208,6 +208,23 @@ class VoiceManagerChatterbox:
         """Get a voice by ID (Chatterbox can use any voice with audio file)"""
         return await self.voice_cache.get_voice_for_engine(voice_id, self._engine)
 
+    async def get_voice_by_name(self, name: str) -> Optional[VoiceInDB]:
+        """Get a voice by name (searches all voices)"""
+        voices, _ = await self.voice_cache.list_voices()
+        for voice in voices:
+            if voice.name == name:
+                return voice
+        return None
+
+    async def get_voice_by_id_or_name(self, identifier: str) -> Optional[VoiceInDB]:
+        """Get a voice by ID or name (tries ID first, then name)"""
+        # Try by ID first
+        voice = await self.get_voice(identifier)
+        if voice:
+            return voice
+        # Try by name
+        return await self.get_voice_by_name(identifier)
+
     async def list_voices(self, **kwargs) -> tuple[List[VoiceInDB], int]:
         """List voices compatible with Chatterbox (all voices with audio files)"""
         return await self.voice_cache.list_voices(engine=self._engine, **kwargs)

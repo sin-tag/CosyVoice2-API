@@ -196,8 +196,8 @@ async def synthesize_multilingual(
 
         # Resolve audio path from voice_id or uploaded file
         if voice_id:
-            # Use cached voice
-            cached_voice = await voice_manager.get_voice(voice_id)
+            # Use cached voice (support both voice_id and voice name)
+            cached_voice = await voice_manager.get_voice_by_id_or_name(voice_id)
             if not cached_voice:
                 raise HTTPException(status_code=404, detail=f"Voice '{voice_id}' not found")
             if not cached_voice.audio_file_path:
