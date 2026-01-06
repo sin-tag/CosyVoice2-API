@@ -115,12 +115,27 @@ def split_text_into_chunks(text: str, max_length: int = MAX_CHUNK_LENGTH) -> Lis
 def concatenate_audio_tensors(audio_list: List[torch.Tensor], sample_rate: int = 24000) -> torch.Tensor:
     """
     Concatenate multiple audio tensors with small silence gaps.
+    Filters out None values and invalid tensors.
     """
-    if not audio_list:
-        raise ValueError("No audio tensors to concatenate")
+    # Filter out None and invalid tensors
+    valid_audio = []
+    for i, audio in enumerate(audio_list):
+        if audio is None:
+            logger.warning(f"Chunk {i} returned None, skipping")
+            continue
+        if not isinstance(audio, torch.Tensor):
+            logger.warning(f"Chunk {i} is not a tensor ({type(audio)}), skipping")
+            continue
+        if audio.numel() == 0:
+            logger.warning(f"Chunk {i} is empty tensor, skipping")
+            continue
+        valid_audio.append(audio)
 
-    if len(audio_list) == 1:
-        return audio_list[0]
+    if not valid_audio:
+        raise ValueError("No valid audio tensors to concatenate - all chunks failed")
+
+    if len(valid_audio) == 1:
+        return valid_audio[0]
 
     # Small silence gap between chunks (50ms)
     gap_samples = int(sample_rate * 0.05)
@@ -128,7 +143,7 @@ def concatenate_audio_tensors(audio_list: List[torch.Tensor], sample_rate: int =
 
     # Normalize all tensors to same shape (1, samples)
     normalized = []
-    for audio in audio_list:
+    for audio in valid_audio:
         if audio.dim() == 1:
             audio = audio.unsqueeze(0)
         normalized.append(audio)
@@ -313,26 +328,45 @@ class SynthesisEngineChatterbox:
 
             try:
                 audio_chunks = []
+                failed_chunks = []
 
                 for i, chunk in enumerate(chunks):
                     if total_chunks > 1:
                         logger.info(f"Processing chunk {i+1}/{total_chunks} ({len(chunk)} chars)")
 
-                    if model_type == "multilingual":
-                        wav = model.generate(
-                            chunk,
-                            language_id=language,
-                            audio_prompt_path=prompt_audio_path
-                        )
-                    else:
-                        wav = model.generate(
-                            chunk,
-                            audio_prompt_path=prompt_audio_path,
-                            exaggeration=exaggeration,
-                            cfg_weight=cfg_weight
-                        )
+                    try:
+                        if model_type == "multilingual":
+                            wav = model.generate(
+                                chunk,
+                                language_id=language,
+                                audio_prompt_path=prompt_audio_path
+                            )
+                        else:
+                            wav = model.generate(
+                                chunk,
+                                audio_prompt_path=prompt_audio_path,
+                                exaggeration=exaggeration,
+                                cfg_weight=cfg_weight
+                            )
 
-                    audio_chunks.append(wav)
+                        # Validate output
+                        if wav is None:
+                            logger.warning(f"Chunk {i+1} returned None")
+                            failed_chunks.append(i+1)
+                        else:
+                            audio_chunks.append(wav)
+
+                    except Exception as chunk_error:
+                        logger.error(f"Chunk {i+1} failed: {chunk_error}")
+                        failed_chunks.append(i+1)
+                        # Continue with other chunks instead of failing completely
+                        continue
+
+                if not audio_chunks:
+                    raise SynthesisError(f"All {total_chunks} chunks failed to generate audio")
+
+                if failed_chunks:
+                    logger.warning(f"Some chunks failed: {failed_chunks}. Continuing with {len(audio_chunks)} successful chunks.")
 
                 # Concatenate all chunks
                 if len(audio_chunks) > 1:
@@ -340,6 +374,10 @@ class SynthesisEngineChatterbox:
                     logger.info(f"Concatenated {len(audio_chunks)} audio chunks")
                 else:
                     final_wav = audio_chunks[0]
+
+                # Validate final output
+                if final_wav is None or not isinstance(final_wav, torch.Tensor):
+                    raise SynthesisError("Failed to generate valid audio output")
 
                 # Save using model's sample rate
                 ta.save(output_path, final_wav, model.sr)
@@ -404,25 +442,43 @@ class SynthesisEngineChatterbox:
 
             try:
                 audio_chunks = []
+                failed_chunks = []
                 has_audio_prompt = prompt_audio_path and os.path.exists(prompt_audio_path)
 
                 for i, chunk in enumerate(chunks):
                     if total_chunks > 1:
                         logger.info(f"Processing chunk {i+1}/{total_chunks} ({len(chunk)} chars)")
 
-                    if has_audio_prompt:
-                        wav = model.generate(
-                            chunk,
-                            language_id=language,
-                            audio_prompt_path=prompt_audio_path
-                        )
-                    else:
-                        wav = model.generate(
-                            chunk,
-                            language_id=language
-                        )
+                    try:
+                        if has_audio_prompt:
+                            wav = model.generate(
+                                chunk,
+                                language_id=language,
+                                audio_prompt_path=prompt_audio_path
+                            )
+                        else:
+                            wav = model.generate(
+                                chunk,
+                                language_id=language
+                            )
 
-                    audio_chunks.append(wav)
+                        # Validate output
+                        if wav is None:
+                            logger.warning(f"Chunk {i+1} returned None")
+                            failed_chunks.append(i+1)
+                        else:
+                            audio_chunks.append(wav)
+
+                    except Exception as chunk_error:
+                        logger.error(f"Chunk {i+1} failed: {chunk_error}")
+                        failed_chunks.append(i+1)
+                        continue
+
+                if not audio_chunks:
+                    raise SynthesisError(f"All {total_chunks} chunks failed to generate audio")
+
+                if failed_chunks:
+                    logger.warning(f"Some chunks failed: {failed_chunks}. Continuing with {len(audio_chunks)} successful chunks.")
 
                 # Concatenate all chunks
                 if len(audio_chunks) > 1:
@@ -430,6 +486,10 @@ class SynthesisEngineChatterbox:
                     logger.info(f"Concatenated {len(audio_chunks)} audio chunks")
                 else:
                     final_wav = audio_chunks[0]
+
+                # Validate final output
+                if final_wav is None or not isinstance(final_wav, torch.Tensor):
+                    raise SynthesisError("Failed to generate valid audio output")
 
                 # Save using model's sample rate
                 ta.save(output_path, final_wav, model.sr)
