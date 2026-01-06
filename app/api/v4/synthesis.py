@@ -459,9 +459,8 @@ async def synthesize_multilingual_async(
             if temp_audio_path and os.path.exists(temp_audio_path):
                 file_manager.delete_file(temp_audio_path)
 
-    # Run task in background
-    background_tasks.add_task(
-        task_manager.run_task,
+    # Enqueue task for sequential processing (don't use background_tasks, use queue)
+    await task_manager.enqueue_task(
         task.task_id,
         run_synthesis
     )
@@ -470,7 +469,8 @@ async def synthesize_multilingual_async(
         "success": True,
         "task_id": task.task_id,
         "status": task.status.value,
-        "message": "Task queued for processing",
+        "queue_position": task.queue_position,
+        "message": task.message,
         "check_status_url": f"/api/v4/synthesis/tasks/{task.task_id}"
     }
 
@@ -481,7 +481,8 @@ async def get_task_status(task_id: str):
     Get the status of a background synthesis task.
 
     Returns task details including:
-    - status: pending, processing, completed, failed
+    - status: queued, processing, completed, failed
+    - queue_position: Position in queue (0 = processing now)
     - progress: 0.0-1.0
     - audio_url: URL to download audio (when completed)
     - error_message: Error details (when failed)
@@ -495,6 +496,7 @@ async def get_task_status(task_id: str):
     return {
         "task_id": task.task_id,
         "status": task.status.value,
+        "queue_position": task.queue_position,
         "progress": task.progress,
         "message": task.message,
         "text": task.text,

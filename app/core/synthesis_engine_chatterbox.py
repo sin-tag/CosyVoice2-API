@@ -9,7 +9,6 @@ import logging
 import uuid
 import time
 import re
-import threading
 from typing import Optional, Generator, Any, Dict, List
 
 import torch
@@ -32,8 +31,7 @@ MAX_VAL = 0.8
 CHATTERBOX_SAMPLE_RATE = 24000  # Chatterbox uses 24kHz
 MAX_CHUNK_LENGTH = 500  # Maximum characters per chunk for stable synthesis
 
-# Global lock for model inference - Chatterbox model is NOT thread-safe
-_model_lock = threading.Lock()
+# NOTE: Thread safety is handled by AsyncTaskManager queue - tasks are processed sequentially
 
 
 def postprocess(speech, sample_rate=24000):
@@ -328,79 +326,76 @@ class SynthesisEngineChatterbox:
         def _sync_synthesis():
             import torchaudio as ta
 
-            # Acquire lock to prevent concurrent model access
-            logger.info(f"Waiting for model lock... (model_type={model_type}, chunks={total_chunks})")
-            with _model_lock:
-                logger.info(f"Acquired model lock. Starting synthesis: model_type={model_type}, lang={language}, text_len={len(text)}, chunks={total_chunks}")
+            logger.info(f"Starting synthesis: model_type={model_type}, lang={language}, text_len={len(text)}, chunks={total_chunks}")
 
-                try:
-                    audio_chunks = []
-                    failed_chunks = []
+            try:
+                audio_chunks = []
+                failed_chunks = []
 
-                    for i, chunk in enumerate(chunks):
-                        if total_chunks > 1:
-                            logger.info(f"Processing chunk {i+1}/{total_chunks} ({len(chunk)} chars)")
+                for i, chunk in enumerate(chunks):
+                    if total_chunks > 1:
+                        logger.info(f"Processing chunk {i+1}/{total_chunks} ({len(chunk)} chars)")
 
-                        try:
-                            if model_type == "multilingual":
-                                wav = model.generate(
-                                    chunk,
-                                    language_id=language,
-                                    audio_prompt_path=prompt_audio_path
-                                )
-                            else:
-                                wav = model.generate(
-                                    chunk,
-                                    audio_prompt_path=prompt_audio_path,
-                                    exaggeration=exaggeration,
-                                    cfg_weight=cfg_weight
-                                )
+                    try:
+                        if model_type == "multilingual":
+                            wav = model.generate(
+                                chunk,
+                                language_id=language,
+                                audio_prompt_path=prompt_audio_path
+                            )
+                        else:
+                            wav = model.generate(
+                                chunk,
+                                audio_prompt_path=prompt_audio_path,
+                                exaggeration=exaggeration,
+                                cfg_weight=cfg_weight
+                            )
 
-                            # Validate output
-                            if wav is None:
-                                logger.warning(f"Chunk {i+1} returned None")
-                                failed_chunks.append(i+1)
-                            else:
-                                audio_chunks.append(wav)
-
-                        except Exception as chunk_error:
-                            logger.error(f"Chunk {i+1} failed: {chunk_error}")
+                        # Validate output
+                        if wav is None:
+                            logger.warning(f"Chunk {i+1} returned None")
                             failed_chunks.append(i+1)
-                            # Continue with other chunks instead of failing completely
-                            continue
+                        else:
+                            audio_chunks.append(wav)
 
-                    if not audio_chunks:
-                        raise SynthesisError(f"All {total_chunks} chunks failed to generate audio")
+                    except Exception as chunk_error:
+                        logger.error(f"Chunk {i+1} failed: {chunk_error}")
+                        failed_chunks.append(i+1)
+                        # Continue with other chunks instead of failing completely
+                        continue
 
-                    if failed_chunks:
-                        logger.warning(f"Some chunks failed: {failed_chunks}. Continuing with {len(audio_chunks)} successful chunks.")
+                if not audio_chunks:
+                    raise SynthesisError(f"All {total_chunks} chunks failed to generate audio")
 
-                    # Concatenate all chunks
-                    if len(audio_chunks) > 1:
-                        final_wav = concatenate_audio_tensors(audio_chunks, model.sr)
-                        logger.info(f"Concatenated {len(audio_chunks)} audio chunks")
-                    else:
-                        final_wav = audio_chunks[0]
+                if failed_chunks:
+                    logger.warning(f"Some chunks failed: {failed_chunks}. Continuing with {len(audio_chunks)} successful chunks.")
 
-                    # Validate final output
-                    if final_wav is None or not isinstance(final_wav, torch.Tensor):
-                        raise SynthesisError("Failed to generate valid audio output")
+                # Concatenate all chunks
+                if len(audio_chunks) > 1:
+                    final_wav = concatenate_audio_tensors(audio_chunks, model.sr)
+                    logger.info(f"Concatenated {len(audio_chunks)} audio chunks")
+                else:
+                    final_wav = audio_chunks[0]
 
-                    # Save using model's sample rate
-                    ta.save(output_path, final_wav, model.sr)
-                    logger.info(f"Saved synthesis output to: {output_path}")
+                # Validate final output
+                if final_wav is None or not isinstance(final_wav, torch.Tensor):
+                    raise SynthesisError("Failed to generate valid audio output")
 
-                    return time.time() - start_time
+                # Save using model's sample rate
+                ta.save(output_path, final_wav, model.sr)
+                logger.info(f"Saved synthesis output to: {output_path}")
 
-                except RuntimeError as e:
-                    error_msg = str(e)
-                    if "CUDA" in error_msg or "device-side assert" in error_msg:
-                        logger.error(f"CUDA error during synthesis: {error_msg}")
-                        if torch.cuda.is_available():
-                            torch.cuda.empty_cache()
-                            torch.cuda.synchronize()
-                        raise SynthesisError(f"CUDA error: {error_msg}. Try restarting the server.")
-                    raise
+                return time.time() - start_time
+
+            except RuntimeError as e:
+                error_msg = str(e)
+                if "CUDA" in error_msg or "device-side assert" in error_msg:
+                    logger.error(f"CUDA error during synthesis: {error_msg}")
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                        torch.cuda.synchronize()
+                    raise SynthesisError(f"CUDA error: {error_msg}. Try restarting the server.")
+                raise
 
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, _sync_synthesis)
@@ -445,77 +440,74 @@ class SynthesisEngineChatterbox:
             if self.voice_manager.model_type != "multilingual":
                 raise ValueError("Multilingual synthesis requires ChatterboxMultilingual model")
 
-            # Acquire lock to prevent concurrent model access
-            logger.info(f"Waiting for model lock... (multilingual, chunks={total_chunks})")
-            with _model_lock:
-                logger.info(f"Acquired model lock. Starting multilingual synthesis: lang={language}, text_len={len(text)}, chunks={total_chunks}, audio={prompt_audio_path}")
+            logger.info(f"Starting multilingual synthesis: lang={language}, text_len={len(text)}, chunks={total_chunks}, audio={prompt_audio_path}")
 
-                try:
-                    audio_chunks = []
-                    failed_chunks = []
-                    has_audio_prompt = prompt_audio_path and os.path.exists(prompt_audio_path)
+            try:
+                audio_chunks = []
+                failed_chunks = []
+                has_audio_prompt = prompt_audio_path and os.path.exists(prompt_audio_path)
 
-                    for i, chunk in enumerate(chunks):
-                        if total_chunks > 1:
-                            logger.info(f"Processing chunk {i+1}/{total_chunks} ({len(chunk)} chars)")
+                for i, chunk in enumerate(chunks):
+                    if total_chunks > 1:
+                        logger.info(f"Processing chunk {i+1}/{total_chunks} ({len(chunk)} chars)")
 
-                        try:
-                            if has_audio_prompt:
-                                wav = model.generate(
-                                    chunk,
-                                    language_id=language,
-                                    audio_prompt_path=prompt_audio_path
-                                )
-                            else:
-                                wav = model.generate(
-                                    chunk,
-                                    language_id=language
-                                )
+                    try:
+                        if has_audio_prompt:
+                            wav = model.generate(
+                                chunk,
+                                language_id=language,
+                                audio_prompt_path=prompt_audio_path
+                            )
+                        else:
+                            wav = model.generate(
+                                chunk,
+                                language_id=language
+                            )
 
-                            # Validate output
-                            if wav is None:
-                                logger.warning(f"Chunk {i+1} returned None")
-                                failed_chunks.append(i+1)
-                            else:
-                                audio_chunks.append(wav)
-
-                        except Exception as chunk_error:
-                            logger.error(f"Chunk {i+1} failed: {chunk_error}")
+                        # Validate output
+                        if wav is None:
+                            logger.warning(f"Chunk {i+1} returned None")
                             failed_chunks.append(i+1)
-                            continue
+                        else:
+                            audio_chunks.append(wav)
 
-                    if not audio_chunks:
-                        raise SynthesisError(f"All {total_chunks} chunks failed to generate audio")
+                    except Exception as chunk_error:
+                        logger.error(f"Chunk {i+1} failed: {chunk_error}")
+                        failed_chunks.append(i+1)
+                        continue
 
-                    if failed_chunks:
-                        logger.warning(f"Some chunks failed: {failed_chunks}. Continuing with {len(audio_chunks)} successful chunks.")
+                if not audio_chunks:
+                    raise SynthesisError(f"All {total_chunks} chunks failed to generate audio")
 
-                    # Concatenate all chunks
-                    if len(audio_chunks) > 1:
-                        final_wav = concatenate_audio_tensors(audio_chunks, model.sr)
-                        logger.info(f"Concatenated {len(audio_chunks)} audio chunks")
-                    else:
-                        final_wav = audio_chunks[0]
+                if failed_chunks:
+                    logger.warning(f"Some chunks failed: {failed_chunks}. Continuing with {len(audio_chunks)} successful chunks.")
 
-                    # Validate final output
-                    if final_wav is None or not isinstance(final_wav, torch.Tensor):
-                        raise SynthesisError("Failed to generate valid audio output")
+                # Concatenate all chunks
+                if len(audio_chunks) > 1:
+                    final_wav = concatenate_audio_tensors(audio_chunks, model.sr)
+                    logger.info(f"Concatenated {len(audio_chunks)} audio chunks")
+                else:
+                    final_wav = audio_chunks[0]
 
-                    # Save using model's sample rate
-                    ta.save(output_path, final_wav, model.sr)
-                    logger.info(f"Saved output to: {output_path}")
+                # Validate final output
+                if final_wav is None or not isinstance(final_wav, torch.Tensor):
+                    raise SynthesisError("Failed to generate valid audio output")
 
-                    return time.time() - start_time
+                # Save using model's sample rate
+                ta.save(output_path, final_wav, model.sr)
+                logger.info(f"Saved output to: {output_path}")
 
-                except RuntimeError as e:
-                    error_msg = str(e)
-                    if "CUDA" in error_msg or "device-side assert" in error_msg:
-                        logger.error(f"CUDA error during synthesis: {error_msg}")
-                        if torch.cuda.is_available():
-                            torch.cuda.empty_cache()
-                            torch.cuda.synchronize()
-                        raise SynthesisError(f"CUDA error: {error_msg}. Try restarting the server.")
-                    raise
+                return time.time() - start_time
+
+            except RuntimeError as e:
+                error_msg = str(e)
+                if "CUDA" in error_msg or "device-side assert" in error_msg:
+                    logger.error(f"CUDA error during synthesis: {error_msg}")
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                        torch.cuda.synchronize()
+                    raise SynthesisError(f"CUDA error: {error_msg}. Try restarting the server.")
+                raise
 
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, _sync_synthesis)
