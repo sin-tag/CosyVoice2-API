@@ -152,12 +152,12 @@ async def synthesize_with_cache(
 
 @router.post("/multilingual", response_model=SynthesisResponse, summary="Multilingual synthesis")
 async def synthesize_multilingual(
-    request: Request,
     text: str = Form(..., description="Text to synthesize"),
     voice_id: Optional[str] = Form(None, description="Cached voice ID (use this OR prompt_audio)"),
     language: str = Form("en", description="Target language code (e.g., en, zh, ja, ko)"),
     format: AudioFormat = Form(AudioFormat.WAV, description="Output audio format"),
     exaggeration: float = Form(0.5, ge=0.0, le=1.0, description="Voice exaggeration factor"),
+    prompt_audio: Optional[UploadFile] = File(None, description="Reference audio file (use this OR voice_id)"),
     voice_manager: VoiceManagerChatterbox = Depends(get_voice_manager_chatterbox),
     synthesis_engine: SynthesisEngineChatterbox = Depends(get_synthesis_engine_chatterbox)
 ):
@@ -189,12 +189,8 @@ async def synthesize_multilingual(
             detail=f"Unsupported language code: '{language}'. Supported: {', '.join(sorted(supported_languages))}"
         )
 
-    # Try to get prompt_audio from form data
-    form = await request.form()
-    prompt_audio = form.get("prompt_audio")
-
-    # Check if prompt_audio is a valid file upload (not empty string)
-    has_prompt_audio = prompt_audio and hasattr(prompt_audio, 'read') and hasattr(prompt_audio, 'filename')
+    # Check if prompt_audio is a valid file upload
+    has_prompt_audio = prompt_audio is not None
 
     # Must provide either voice_id or prompt_audio
     if not voice_id and not has_prompt_audio:
@@ -352,13 +348,13 @@ async def get_supported_tags():
 
 @router.post("/multilingual/async", summary="Multilingual synthesis (background task)")
 async def synthesize_multilingual_async(
-    request: Request,
     background_tasks: BackgroundTasks,
     text: str = Form(..., description="Text to synthesize"),
     voice_id: Optional[str] = Form(None, description="Cached voice ID or name"),
     language: str = Form("en", description="Target language code (e.g., en, zh, ja, ko)"),
     format: AudioFormat = Form(AudioFormat.WAV, description="Output audio format"),
     exaggeration: float = Form(0.5, ge=0.0, le=1.0, description="Voice exaggeration factor"),
+    prompt_audio: Optional[UploadFile] = File(None, description="Reference audio file (use this OR voice_id)"),
     voice_manager: VoiceManagerChatterbox = Depends(get_voice_manager_chatterbox),
     synthesis_engine: SynthesisEngineChatterbox = Depends(get_synthesis_engine_chatterbox)
 ):
@@ -384,10 +380,8 @@ async def synthesize_multilingual_async(
             detail=f"Unsupported language code: '{language}'. Supported: {', '.join(sorted(supported_languages))}"
         )
 
-    # Try to get prompt_audio from form data
-    form = await request.form()
-    prompt_audio = form.get("prompt_audio")
-    has_prompt_audio = prompt_audio and hasattr(prompt_audio, 'read') and hasattr(prompt_audio, 'filename')
+    # Check if prompt_audio is a valid file upload
+    has_prompt_audio = prompt_audio is not None
 
     if not voice_id and not has_prompt_audio:
         raise HTTPException(

@@ -6,20 +6,23 @@ import os
 import uuid
 import tempfile
 import shutil
+import asyncio
 import aiofiles
 from pathlib import Path
 from typing import Optional, Tuple
 from datetime import datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor
 
 from app.core.config import settings
 
 
 class FileManager:
     """File management utilities"""
-    
+
     def __init__(self):
         self.temp_dir = Path(tempfile.gettempdir()) / "cosyvoice2_api"
         self.temp_dir.mkdir(exist_ok=True)
+        self._io_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="file_io_")
     
     def generate_unique_filename(self, original_filename: str, prefix: str = "") -> str:
         """Generate a unique filename with timestamp and UUID"""
@@ -75,36 +78,42 @@ class FileManager:
     
     async def copy_file(self, source_path: str, destination_path: str) -> bool:
         """
-        Copy file from source to destination
+        Copy file from source to destination (non-blocking)
         Returns: success status
         """
         try:
             # Ensure destination directory exists
             dest_dir = Path(destination_path).parent
             dest_dir.mkdir(parents=True, exist_ok=True)
-            
-            # Copy file
-            shutil.copy2(source_path, destination_path)
+
+            # Copy file in executor to avoid blocking the event loop
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(
+                self._io_executor, shutil.copy2, source_path, destination_path
+            )
             return True
-            
+
         except Exception as e:
             print(f"Error copying file from {source_path} to {destination_path}: {e}")
             return False
     
     async def move_file(self, source_path: str, destination_path: str) -> bool:
         """
-        Move file from source to destination
+        Move file from source to destination (non-blocking)
         Returns: success status
         """
         try:
             # Ensure destination directory exists
             dest_dir = Path(destination_path).parent
             dest_dir.mkdir(parents=True, exist_ok=True)
-            
-            # Move file
-            shutil.move(source_path, destination_path)
+
+            # Move file in executor to avoid blocking the event loop
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(
+                self._io_executor, shutil.move, source_path, destination_path
+            )
             return True
-            
+
         except Exception as e:
             print(f"Error moving file from {source_path} to {destination_path}: {e}")
             return False

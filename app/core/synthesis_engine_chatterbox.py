@@ -10,6 +10,7 @@ import uuid
 import time
 import re
 from typing import Optional, Generator, Any, Dict, List
+from concurrent.futures import ThreadPoolExecutor
 
 import torch
 import torchaudio
@@ -31,7 +32,11 @@ MAX_VAL = 0.8
 CHATTERBOX_SAMPLE_RATE = 24000  # Chatterbox uses 24kHz
 MAX_CHUNK_LENGTH = 500  # Maximum characters per chunk for stable synthesis
 
-# NOTE: Thread safety is handled by AsyncTaskManager queue - tasks are processed sequentially
+# Dedicated executor for synthesis (1 thread - model is NOT thread-safe)
+_synthesis_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="synthesis_")
+
+# Global lock to ensure only one synthesis runs at a time across all endpoints
+_synthesis_lock = asyncio.Lock()
 
 
 def postprocess(speech, sample_rate=24000):
@@ -397,8 +402,10 @@ class SynthesisEngineChatterbox:
                     raise SynthesisError(f"CUDA error: {error_msg}. Try restarting the server.")
                 raise
 
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, _sync_synthesis)
+        # Acquire global lock to prevent concurrent model access (model is NOT thread-safe)
+        async with _synthesis_lock:
+            loop = asyncio.get_event_loop()
+            return await loop.run_in_executor(_synthesis_executor, _sync_synthesis)
 
     async def synthesize_multilingual(
         self,
@@ -509,8 +516,10 @@ class SynthesisEngineChatterbox:
                     raise SynthesisError(f"CUDA error: {error_msg}. Try restarting the server.")
                 raise
 
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, _sync_synthesis)
+        # Acquire global lock to prevent concurrent model access (model is NOT thread-safe)
+        async with _synthesis_lock:
+            loop = asyncio.get_event_loop()
+            return await loop.run_in_executor(_synthesis_executor, _sync_synthesis)
 
     async def _resolve_audio_path(self, audio_url: str) -> str:
         """Resolve audio URL to local file path"""

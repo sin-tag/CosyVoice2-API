@@ -166,7 +166,6 @@ create_models_if_missing(ROOT_DIR)
 
 # Now import everything else
 import asyncio
-import concurrent.futures
 import logging
 from contextlib import asynccontextmanager
 from typing import Dict, Any
@@ -200,14 +199,9 @@ async def lifespan(app: FastAPI):
 
     logger.info("Starting Chatterbox TTS API server...")
 
-    # Configure thread pool for MAXIMUM parallelism
-    loop = asyncio.get_event_loop()
-    executor = concurrent.futures.ThreadPoolExecutor(
-        max_workers=16,  # High thread count for true parallelism
-        thread_name_prefix="synthesis_"
-    )
-    loop.set_default_executor(executor)
-    logger.info(f"Thread pool configured with {executor._max_workers} workers for unlimited parallel processing")
+    # NOTE: Synthesis uses its own dedicated executor (1 thread) in synthesis_engine_chatterbox.py
+    # The default asyncio executor handles general I/O (file ops, voice uploads, etc.)
+    # Do NOT override the default executor - it must remain available for non-synthesis tasks
 
     try:
         # ===============================
@@ -304,6 +298,31 @@ Fast voice cloning with paralinguistic tags support.
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Middleware to handle body parsing errors gracefully
+    from starlette.middleware.base import BaseHTTPMiddleware
+    from starlette.responses import JSONResponse as StarletteJSONResponse
+
+    class BodyParsingErrorMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request, call_next):
+            try:
+                response = await call_next(request)
+                return response
+            except Exception as e:
+                error_msg = str(e).lower()
+                if "parsing" in error_msg or "multipart" in error_msg or "content-type" in error_msg:
+                    logger.warning(f"Body parsing error on {request.url.path}: {e}")
+                    return StarletteJSONResponse(
+                        status_code=400,
+                        content={
+                            "error": "invalid_request_body",
+                            "message": "Failed to parse request body. Ensure Content-Type is multipart/form-data for endpoints that accept file uploads or form data.",
+                            "details": {"path": str(request.url)}
+                        }
+                    )
+                raise
+
+    app.add_middleware(BodyParsingErrorMiddleware)
 
     # Setup exception handlers
     setup_exception_handlers(app)
