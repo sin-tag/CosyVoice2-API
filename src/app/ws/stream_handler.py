@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 import logging
 import threading
@@ -26,21 +27,31 @@ def _audio_to_pcm16_bytes(audio: np.ndarray) -> bytes:
 
 @router.websocket("/ws/tts/{engine_name}")
 async def websocket_tts(ws: WebSocket, engine_name: str):
-    """WebSocket endpoint for real-time TTS streaming.
+    """WebSocket TTS streaming — aligned with chatterbox message types.
 
-    Protocol:
-    1. Client connects
-    2. Client sends JSON config: {"text": "...", "language": "en", "voice_id": "uuid", ...params}
-    3. Server sends binary PCM16 frames (24kHz, mono, 16-bit LE)
-    4. Server sends JSON when done: {"type": "done", "history_id": "uuid", "latency_ms": N, "total_time_ms": N}
-    5. Client can send {"type": "stop"} to cancel mid-generation
+    Message types (server → client):
+      - synthesis_start:    Confirms synthesis has begun
+      - audio_chunk:        Binary PCM16 frame + JSON metadata
+      - synthesis_complete: Summary when done
+      - error:              Error with code + message
+      - status:             Status updates (e.g. queued)
+
+    Message types (client → server):
+      - text_request:  {"message_type": "text_request", "text": "...", ...}
+      - stop:          {"message_type": "stop"}
+      - ping:          {"message_type": "ping"}
     """
     await ws.accept()
 
-    # Verify API key from query params or first message
+    # Verify API key from query params
     api_key = ws.query_params.get("api_key")
     if api_key != settings.api_key:
-        await ws.close(code=4001, reason="Invalid API key")
+        await ws.send_json({
+            "message_type": "error",
+            "error_code": "auth_failed",
+            "error_message": "Invalid API key",
+        })
+        await ws.close(code=4001)
         return
 
     try:
@@ -52,6 +63,7 @@ async def websocket_tts(ws: WebSocket, engine_name: str):
         language = config.get("language", "en")
         voice_id_str = config.get("voice_id")
         voice_id = uuid.UUID(voice_id_str) if voice_id_str else None
+        request_id = config.get("request_id", str(uuid.uuid4())[:12])
         params = {
             "temperature": config.get("temperature", 0.7),
             "top_p": config.get("top_p", 0.9),
@@ -60,7 +72,12 @@ async def websocket_tts(ws: WebSocket, engine_name: str):
         }
 
         if not text:
-            await ws.send_json({"type": "error", "message": "Text is required"})
+            await ws.send_json({
+                "message_type": "error",
+                "request_id": request_id,
+                "error_code": "validation_error",
+                "error_message": "Text is required",
+            })
             await ws.close()
             return
 
@@ -68,8 +85,10 @@ async def websocket_tts(ws: WebSocket, engine_name: str):
 
         if not engine.supports_language(language):
             await ws.send_json({
-                "type": "error",
-                "message": f"Language '{language}' not supported. Supported: {engine.supported_languages}",
+                "message_type": "error",
+                "request_id": request_id,
+                "error_code": "unsupported_language",
+                "error_message": f"Language '{language}' not supported. Supported: {engine.supported_languages}",
             })
             await ws.close()
             return
@@ -80,7 +99,12 @@ async def websocket_tts(ws: WebSocket, engine_name: str):
             async with async_session_factory() as db:
                 voice_data = await voice_cache.get_or_prepare(voice_id, engine, db)
             if voice_data is None:
-                await ws.send_json({"type": "error", "message": f"Voice '{voice_id}' not found or not compatible"})
+                await ws.send_json({
+                    "message_type": "error",
+                    "request_id": request_id,
+                    "error_code": "voice_not_compatible",
+                    "error_message": f"Voice '{voice_id}' not found or not compatible",
+                })
                 await ws.close()
                 return
 
@@ -89,7 +113,7 @@ async def websocket_tts(ws: WebSocket, engine_name: str):
         semaphore = engine_registry.get_semaphore(engine_name)
 
         start = time.perf_counter()
-        first_chunk = True
+        chunk_index = 0
         latency_ms = 0
         total_samples = 0
         sr = 24000
@@ -98,9 +122,25 @@ async def websocket_tts(ws: WebSocket, engine_name: str):
         try:
             await asyncio.wait_for(semaphore.acquire(), timeout=settings.generation_timeout_sec)
         except asyncio.TimeoutError:
-            await ws.send_json({"type": "error", "message": "GPU queue full — try again later"})
+            await ws.send_json({
+                "message_type": "error",
+                "request_id": request_id,
+                "error_code": "gpu_queue_full",
+                "error_message": "GPU queue full — try again later",
+            })
             await ws.close()
             return
+
+        # synthesis_start
+        await ws.send_json({
+            "message_type": "synthesis_start",
+            "request_id": request_id,
+            "text": text[:100],
+            "voice_id": str(voice_id) if voice_id else None,
+            "language": language,
+            "sample_rate": sr,
+            "timestamp": time.time(),
+        })
 
         try:
             try:
@@ -111,19 +151,23 @@ async def websocket_tts(ws: WebSocket, engine_name: str):
                     pcm_bytes = _audio_to_pcm16_bytes(chunk)
                     total_samples += len(chunk)
 
-                    if first_chunk:
+                    if chunk_index == 0:
                         latency_ms = int((time.perf_counter() - start) * 1000)
-                        await ws.send_json({
-                            "type": "metadata",
-                            "sample_rate": sr,
-                            "latency_ms": latency_ms,
-                        })
-                        first_chunk = False
 
+                    # Send audio_chunk metadata as JSON, then binary data
+                    await ws.send_json({
+                        "message_type": "audio_chunk",
+                        "request_id": request_id,
+                        "chunk_index": chunk_index,
+                        "chunk_size": len(pcm_bytes),
+                        "sample_rate": sr,
+                        "is_final": False,
+                        "timestamp": time.time(),
+                    })
                     await ws.send_bytes(pcm_bytes)
+                    chunk_index += 1
             finally:
                 semaphore.release()
-                # Free fragmented GPU memory
                 try:
                     import torch
                     if torch.cuda.is_available():
@@ -162,24 +206,38 @@ async def websocket_tts(ws: WebSocket, engine_name: str):
         except Exception:
             logger.warning("Failed to record history for WebSocket generation", exc_info=True)
 
-        # Send done message
+        # synthesis_complete
+        slots = engine_registry.gpu_slots(engine_name)
         await ws.send_json({
-            "type": "done",
+            "message_type": "synthesis_complete",
+            "request_id": request_id,
             "history_id": str(history_id) if history_id else None,
+            "total_chunks": chunk_index,
+            "duration": round(duration_sec, 2),
+            "synthesis_time": round(total_ms / 1000, 3),
             "latency_ms": latency_ms,
-            "total_time_ms": total_ms,
-            "audio_duration_sec": round(duration_sec, 2),
+            "gpu_slots_free": slots["free"],
+            "gpu_slots_total": slots["total"],
+            "timestamp": time.time(),
         })
 
     except WebSocketDisconnect:
         logger.info("WebSocket client disconnected")
     except json.JSONDecodeError:
-        await ws.send_json({"type": "error", "message": "Invalid JSON"})
+        await ws.send_json({
+            "message_type": "error",
+            "error_code": "invalid_json",
+            "error_message": "Invalid JSON",
+        })
         await ws.close()
     except Exception as e:
         logger.error("WebSocket error: %s", e, exc_info=True)
         try:
-            await ws.send_json({"type": "error", "message": "Internal server error"})
+            await ws.send_json({
+                "message_type": "error",
+                "error_code": "internal_error",
+                "error_message": "Internal server error",
+            })
         except Exception:
             pass
         await ws.close()

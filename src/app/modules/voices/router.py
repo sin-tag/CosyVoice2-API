@@ -57,20 +57,18 @@ async def create_voice(
 
     if audio_duration < settings.min_reference_audio_duration_sec:
         os.remove(audio_path)
-        from fastapi import HTTPException
+        from app.core.exceptions import AudioProcessingError
 
-        raise HTTPException(
-            status_code=400,
-            detail=f"Audio too short: {audio_duration:.1f}s (minimum {settings.min_reference_audio_duration_sec}s)",
+        raise AudioProcessingError(
+            f"Audio too short: {audio_duration:.1f}s (minimum {settings.min_reference_audio_duration_sec}s)"
         )
 
     if audio_duration > settings.max_reference_audio_duration_sec:
         os.remove(audio_path)
-        from fastapi import HTTPException
+        from app.core.exceptions import AudioProcessingError
 
-        raise HTTPException(
-            status_code=400,
-            detail=f"Audio too long: {audio_duration:.1f}s (maximum {settings.max_reference_audio_duration_sec}s)",
+        raise AudioProcessingError(
+            f"Audio too long: {audio_duration:.1f}s (maximum {settings.max_reference_audio_duration_sec}s)"
         )
 
     data = VoiceCreate(name=name, description=description, language=language, reference_text=reference_text)

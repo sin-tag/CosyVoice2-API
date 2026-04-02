@@ -2,7 +2,6 @@ import asyncio
 import base64
 import json
 import logging
-import struct
 import time
 
 import numpy as np
@@ -19,6 +18,7 @@ from app.modules.tts import service
 from app.modules.tts.schemas import (
     EngineInfoResponse,
     LanguageListResponse,
+    SynthesisResponse,
     TTSGenerateRequest,
     TTSStreamRequest,
 )
@@ -57,41 +57,79 @@ async def qwen_languages(_: ApiKey):
 # ──── Sync Generate ────
 
 
-def _slot_headers(engine_name: str) -> dict[str, str]:
-    """Return GPU slot info as response headers."""
+async def _generate(engine_name: str, body: TTSGenerateRequest, db):
+    """Shared generate logic — returns SynthesisResponse + wav bytes."""
+    start = time.perf_counter()
+    wav_bytes, sr, history_id = await service.generate_speech(
+        db, engine_name, body.text, body.language, body.voice_id,
+        temperature=body.temperature, top_p=body.top_p, top_k=body.top_k,
+        repetition_penalty=body.repetition_penalty,
+    )
+    synthesis_time = round(time.perf_counter() - start, 3)
+
+    # Audio duration from WAV size: wav_bytes includes header, but we can compute from samples
+    import struct
+    # PCM16 mono: 2 bytes per sample, WAV header is 44 bytes
+    num_samples = (len(wav_bytes) - 44) // 2
+    duration = round(num_samples / sr, 2) if sr > 0 else 0
+
     slots = engine_registry.gpu_slots(engine_name)
-    return {
-        "X-GPU-Slots-Free": str(slots["free"]),
-        "X-GPU-Slots-Total": str(slots["total"]),
-        "X-GPU-Slots-Busy": str(slots["busy"]),
-    }
+
+    return wav_bytes, sr, SynthesisResponse(
+        success=True,
+        message="Synthesis completed",
+        audio_url=f"/api/v1/tts/audio/{history_id}",
+        duration=duration,
+        format=body.output_format,
+        synthesis_time=synthesis_time,
+        sample_rate=sr,
+        history_id=str(history_id),
+        gpu_slots_free=slots["free"],
+        gpu_slots_total=slots["total"],
+    )
 
 
-@router.post("/moss/generate")
+@router.post("/moss/generate", response_model=SynthesisResponse)
 async def generate_moss(body: TTSGenerateRequest, db: DB, _: ApiKey):
-    wav_bytes, sr, history_id = await service.generate_speech(
-        db, "moss", body.text, body.language, body.voice_id,
-        temperature=body.temperature, top_p=body.top_p, top_k=body.top_k,
-        repetition_penalty=body.repetition_penalty,
-    )
-    return Response(
-        content=wav_bytes,
-        media_type="audio/wav",
-        headers={"X-History-Id": str(history_id), "X-Sample-Rate": str(sr), **_slot_headers("moss")},
-    )
+    wav_bytes, sr, resp = await _generate("moss", body, db)
+    return resp
 
 
-@router.post("/qwen/generate")
+@router.post("/qwen/generate", response_model=SynthesisResponse)
 async def generate_qwen(body: TTSGenerateRequest, db: DB, _: ApiKey):
-    wav_bytes, sr, history_id = await service.generate_speech(
-        db, "qwen", body.text, body.language, body.voice_id,
-        temperature=body.temperature, top_p=body.top_p, top_k=body.top_k,
-        repetition_penalty=body.repetition_penalty,
-    )
+    wav_bytes, sr, resp = await _generate("qwen", body, db)
+    return resp
+
+
+@router.post("/moss/generate/audio")
+async def generate_moss_audio(body: TTSGenerateRequest, db: DB, _: ApiKey):
+    """Return raw WAV audio bytes (for direct playback)."""
+    wav_bytes, sr, resp = await _generate("moss", body, db)
     return Response(
         content=wav_bytes,
         media_type="audio/wav",
-        headers={"X-History-Id": str(history_id), "X-Sample-Rate": str(sr), **_slot_headers("qwen")},
+        headers={
+            "X-History-Id": resp.history_id or "",
+            "X-Sample-Rate": str(sr),
+            "X-GPU-Slots-Free": str(resp.gpu_slots_free),
+            "X-GPU-Slots-Total": str(resp.gpu_slots_total),
+        },
+    )
+
+
+@router.post("/qwen/generate/audio")
+async def generate_qwen_audio(body: TTSGenerateRequest, db: DB, _: ApiKey):
+    """Return raw WAV audio bytes (for direct playback)."""
+    wav_bytes, sr, resp = await _generate("qwen", body, db)
+    return Response(
+        content=wav_bytes,
+        media_type="audio/wav",
+        headers={
+            "X-History-Id": resp.history_id or "",
+            "X-Sample-Rate": str(sr),
+            "X-GPU-Slots-Free": str(resp.gpu_slots_free),
+            "X-GPU-Slots-Total": str(resp.gpu_slots_total),
+        },
     )
 
 
@@ -99,7 +137,14 @@ async def generate_qwen(body: TTSGenerateRequest, db: DB, _: ApiKey):
 
 
 async def _stream_tts(engine_name: str, body: TTSStreamRequest, db):
-    """SSE streaming for TTS generation."""
+    """SSE streaming for TTS generation.
+
+    Events (aligned with chatterbox):
+      - synthesis_start: {text, voice_id, language, sample_rate}
+      - audio_chunk:     base64 PCM16 data + metadata
+      - synthesis_complete: {history_id, duration, synthesis_time, gpu_slots_free}
+      - error:           {error, message}
+    """
     engine = engine_registry.get(engine_name)
 
     if not engine.supports_language(body.language):
@@ -116,49 +161,54 @@ async def _stream_tts(engine_name: str, body: TTSStreamRequest, db):
 
     async def event_generator():
         start = time.perf_counter()
-        first_chunk = True
+        chunk_index = 0
         total_samples = 0
         sr = 24000
         latency_ms = 0
 
         try:
-            # Wait for semaphore with timeout so users don't queue forever
             try:
                 await asyncio.wait_for(semaphore.acquire(), timeout=settings.generation_timeout_sec)
             except asyncio.TimeoutError:
                 logger.warning("Stream semaphore wait timed out for engine '%s'", engine_name)
                 yield {
                     "event": "error",
-                    "data": json.dumps({"message": "GPU queue full — try again later"}),
+                    "data": json.dumps({"error": "gpu_queue_full", "message": "GPU queue full — try again later"}),
                 }
                 return
+
+            # synthesis_start event
+            yield {
+                "event": "synthesis_start",
+                "data": json.dumps({
+                    "text": body.text[:100],
+                    "voice_id": str(body.voice_id) if body.voice_id else None,
+                    "language": body.language,
+                    "sample_rate": sr,
+                }),
+            }
 
             try:
                 async for chunk in engine.stream_generate(body.text, body.language, voice_data, **params):
                     pcm_bytes = _audio_to_pcm16(chunk)
                     total_samples += len(chunk)
 
-                    if first_chunk:
+                    if chunk_index == 0:
                         latency_ms = int((time.perf_counter() - start) * 1000)
-                        slots = engine_registry.gpu_slots(engine_name)
-                        yield {
-                            "event": "metadata",
-                            "data": json.dumps({
-                                "sample_rate": sr,
-                                "latency_ms": latency_ms,
-                                "gpu_slots_free": slots["free"],
-                                "gpu_slots_total": slots["total"],
-                            }),
-                        }
-                        first_chunk = False
 
                     yield {
-                        "event": "audio",
-                        "data": base64.b64encode(pcm_bytes).decode(),
+                        "event": "audio_chunk",
+                        "data": json.dumps({
+                            "audio_data": base64.b64encode(pcm_bytes).decode(),
+                            "chunk_index": chunk_index,
+                            "chunk_size": len(pcm_bytes),
+                            "sample_rate": sr,
+                            "is_final": False,
+                        }),
                     }
+                    chunk_index += 1
             finally:
                 semaphore.release()
-                # Free fragmented GPU memory after streaming
                 try:
                     import torch
                     if torch.cuda.is_available():
@@ -169,7 +219,6 @@ async def _stream_tts(engine_name: str, body: TTSStreamRequest, db):
             total_ms = int((time.perf_counter() - start) * 1000)
             duration_sec = total_samples / sr if sr > 0 else 0
 
-            # Record history after semaphore is released
             record = await service.record_history(
                 db,
                 engine_name=engine_name,
@@ -178,20 +227,23 @@ async def _stream_tts(engine_name: str, body: TTSStreamRequest, db):
                 voice_id=body.voice_id,
                 parameters=params,
                 status="completed",
-                latency_ms=latency_ms if not first_chunk else None,
+                latency_ms=latency_ms if chunk_index > 0 else None,
                 total_time_ms=total_ms,
                 audio_duration_sec=duration_sec,
                 sample_rate=sr,
             )
 
-            done_slots = engine_registry.gpu_slots(engine_name)
+            slots = engine_registry.gpu_slots(engine_name)
             yield {
-                "event": "done",
+                "event": "synthesis_complete",
                 "data": json.dumps({
-                    "total_time_ms": total_ms,
-                    "audio_duration_sec": round(duration_sec, 2),
                     "history_id": str(record.id),
-                    "gpu_slots_free": done_slots["free"],
+                    "total_chunks": chunk_index,
+                    "duration": round(duration_sec, 2),
+                    "synthesis_time": round(total_ms / 1000, 3),
+                    "latency_ms": latency_ms,
+                    "gpu_slots_free": slots["free"],
+                    "gpu_slots_total": slots["total"],
                 }),
             }
 
@@ -209,7 +261,7 @@ async def _stream_tts(engine_name: str, body: TTSStreamRequest, db):
             )
             yield {
                 "event": "error",
-                "data": json.dumps({"message": "Internal server error"}),
+                "data": json.dumps({"error": "synthesis_error", "message": "Internal server error"}),
             }
 
     return EventSourceResponse(event_generator())

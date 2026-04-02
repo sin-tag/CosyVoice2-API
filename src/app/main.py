@@ -2,14 +2,19 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.core.config import settings
 from app.core.database import async_session_factory, engine as db_engine
+from app.core.exceptions import (
+    generic_exception_handler,
+    http_exception_handler,
+    validation_exception_handler,
+)
 from app.engine.registry import engine_registry
 
 logging.basicConfig(
@@ -79,7 +84,7 @@ class IPWhitelistMiddleware:
             if client_ip not in self.allowed:
                 logger.warning("Blocked request from %s", client_ip)
                 if scope["type"] == "http":
-                    resp = JSONResponse(status_code=403, content={"detail": "Access denied"})
+                    resp = JSONResponse(status_code=403, content={"error": "access_denied", "message": "Access denied"})
                     await resp(scope, receive, send)
                     return
                 # WebSocket: reject by closing before accept
@@ -104,7 +109,7 @@ class ConcurrencyLimitMiddleware:
             if scope["type"] == "http":
                 resp = JSONResponse(
                     status_code=503,
-                    content={"detail": "Server busy — too many concurrent requests"},
+                    content={"error": "server_busy", "message": "Too many concurrent requests"},
                 )
                 await resp(scope, receive, send)
                 return
@@ -123,6 +128,11 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+# Exception handlers — standardized {"error", "message", "details"} format
+app.add_exception_handler(HTTPException, http_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(Exception, generic_exception_handler)
 
 # Middleware order: outermost runs first
 # 1. IP whitelist (reject bad IPs immediately)
