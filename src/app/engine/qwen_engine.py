@@ -19,6 +19,9 @@ QWEN_LANG_CODES = list(QWEN_LANG_MAP.keys())
 # Default ref_text when user doesn't provide one
 DEFAULT_REF_TEXT = "Hello, how are you today? Nice to meet you."
 
+# Max ref audio duration in seconds — longer audio is auto-trimmed for speed
+MAX_REF_AUDIO_SEC = 8
+
 
 class QwenEngine(TTSEngine):
     """Thin wrapper around qwen_tts.Qwen3TTSModel — matches official example exactly."""
@@ -73,6 +76,25 @@ class QwenEngine(TTSEngine):
     def _lang(self, code: str) -> str:
         return QWEN_LANG_MAP.get(code, "English")
 
+    def _trim_ref_audio(self, audio_path: str) -> str:
+        """Trim ref audio to MAX_REF_AUDIO_SEC if too long. Returns path (original or trimmed)."""
+        import soundfile as sf
+        info = sf.info(audio_path)
+        if info.duration <= MAX_REF_AUDIO_SEC:
+            return audio_path
+
+        import os
+        # Create trimmed version next to original
+        base, ext = os.path.splitext(audio_path)
+        trimmed_path = f"{base}_trimmed{ext}"
+        if os.path.exists(trimmed_path):
+            return trimmed_path
+
+        data, sr = sf.read(audio_path, stop=int(MAX_REF_AUDIO_SEC * info.samplerate))
+        sf.write(trimmed_path, data, sr)
+        logger.info("Trimmed ref audio from %.1fs to %.1fs: %s", info.duration, MAX_REF_AUDIO_SEC, trimmed_path)
+        return trimmed_path
+
     # ──── Core: exactly like the official example ────
 
     async def generate(
@@ -82,7 +104,7 @@ class QwenEngine(TTSEngine):
             raise ValueError("Voice required. Upload via POST /api/v1/voices first.")
 
         lang = self._lang(language)
-        ref_audio = voice_data["ref_audio"]
+        ref_audio = self._trim_ref_audio(voice_data["ref_audio"])
         ref_text = voice_data.get("ref_text", "") or DEFAULT_REF_TEXT
 
         def _run():
@@ -123,6 +145,7 @@ class QwenEngine(TTSEngine):
                     ref_path = speaker_refs.get(seg["speaker"])
                     if not ref_path:
                         continue
+                    ref_path = self._trim_ref_audio(ref_path)
 
                     ref_text = speaker_ref_texts.get(seg["speaker"], "") or DEFAULT_REF_TEXT
 
