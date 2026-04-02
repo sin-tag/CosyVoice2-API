@@ -7,11 +7,13 @@ import uuid
 import aiofiles
 from fastapi import APIRouter, Form, UploadFile
 from fastapi.responses import Response
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.dependencies import DB, ApiKey
-from app.core.exceptions import AppError
+from app.core.exceptions import AppError, VoiceNotFoundError
 from app.engine.registry import engine_registry
+from app.models.voice import Voice
 from app.modules.comic import service
 from app.modules.comic.schemas import ComicDubbingResponse, DialogueSegment
 
@@ -28,11 +30,61 @@ async def _save_temp_audio(file: UploadFile, speaker: str) -> str:
     return path
 
 
+async def _resolve_speaker_refs(
+    db: AsyncSession,
+    script_speakers: set[str],
+    uploads: dict[str, UploadFile | None],
+    voice_ids: dict[str, str],
+) -> tuple[dict[str, str], list[str]]:
+    """Resolve speaker → audio path from uploads OR voice_ids.
+
+    Priority: uploaded file > voice_id from DB.
+    Returns: (speaker_refs, temp_files_to_cleanup)
+    """
+    speaker_refs: dict[str, str] = {}
+    temp_files: list[str] = []
+
+    for speaker in script_speakers:
+        # 1. Check uploaded file first
+        file = uploads.get(speaker)
+        if file is not None:
+            path = await _save_temp_audio(file, speaker)
+            speaker_refs[speaker] = path
+            temp_files.append(path)
+            continue
+
+        # 2. Check voice_id from DB
+        vid = voice_ids.get(speaker)
+        if vid:
+            voice = await db.get(Voice, str(vid))
+            if voice is None:
+                raise VoiceNotFoundError(str(vid))
+            speaker_refs[speaker] = voice.reference_audio_path
+            continue
+
+        # 3. Neither provided
+        raise AppError(
+            400,
+            f"Missing voice for speaker '{speaker}': upload a file or provide a voice_id",
+            error_code="missing_voice",
+        )
+
+    return speaker_refs, temp_files
+
+
 async def _parse_and_generate(
-    db, script: str, language: str, uploads: dict[str, UploadFile | None],
-    temperature: float, top_p: float, top_k: int, repetition_penalty: float,
+    db: AsyncSession,
+    script: str,
+    language: str,
+    uploads: dict[str, UploadFile | None],
+    voice_ids_json: str | None,
+    temperature: float,
+    top_p: float,
+    top_k: int,
+    repetition_penalty: float,
 ):
-    """Shared logic: parse script, save audio files, generate, cleanup."""
+    """Shared logic: parse script, resolve voices, generate, cleanup."""
+    # Parse script
     try:
         raw_segments = json.loads(script)
         segments = [DialogueSegment(**seg).model_dump() for seg in raw_segments]
@@ -42,19 +94,18 @@ async def _parse_and_generate(
     if not segments:
         raise AppError(400, "Script must have at least 1 segment", error_code="empty_script")
 
+    # Parse voice_ids JSON
+    voice_ids: dict[str, str] = {}
+    if voice_ids_json:
+        try:
+            voice_ids = json.loads(voice_ids_json)
+        except json.JSONDecodeError as e:
+            raise AppError(400, f"Invalid voice_ids JSON: {e}", error_code="invalid_voice_ids")
+
     script_speakers = set(seg["speaker"] for seg in segments)
-    speaker_refs: dict[str, str] = {}
-    temp_files: list[str] = []
+    speaker_refs, temp_files = await _resolve_speaker_refs(db, script_speakers, uploads, voice_ids)
 
     try:
-        for speaker in script_speakers:
-            file = uploads.get(speaker)
-            if file is None:
-                raise AppError(400, f"Missing audio file for speaker '{speaker}'", error_code="missing_voice_file")
-            path = await _save_temp_audio(file, speaker)
-            speaker_refs[speaker] = path
-            temp_files.append(path)
-
         wav_bytes, sr, duration_sec, history_id = await service.generate_comic_audio(
             db, segments, speaker_refs, language,
             temperature=temperature, top_p=top_p, top_k=top_k,
@@ -74,6 +125,7 @@ async def comic_dub(
     db: DB,
     _: ApiKey,
     script: str = Form(..., description='JSON: [{"speaker":"narrator","text":"..."},...]'),
+    voice_ids: str | None = Form(None, description='JSON: {"narrator":"voice-uuid","char1":"voice-uuid"}'),
     language: str = Form("en"),
     temperature: float = Form(0.7),
     top_p: float = Form(0.9),
@@ -87,21 +139,27 @@ async def comic_dub(
 ):
     """Generate dubbed audio for a comic/story.
 
-    Upload voice reference audio for each speaker.
-    Each segment is generated individually with Qwen voice clone, then concatenated.
+    Two ways to provide voice for each speaker (can mix both):
+    1. Upload audio file directly: narrator=@voice.wav
+    2. Use pre-uploaded voice_id: voice_ids={"narrator":"uuid","char1":"uuid"}
 
-    curl -X POST /api/v1/comic/dub \\
-      -H "X-Api-Key: ..." \\
-      -F 'script=[{"speaker":"narrator","text":"Dark night..."},{"speaker":"char1","text":"Stop!"}]' \\
-      -F language=en \\
-      -F narrator=@narrator.wav \\
-      -F char1=@hero_voice.wav
+    Uploaded files take priority over voice_ids.
+
+    Examples:
+        # All files:
+        curl -F narrator=@narrator.wav -F char1=@hero.wav ...
+
+        # All voice_ids:
+        curl -F 'voice_ids={"narrator":"uuid1","char1":"uuid2"}' ...
+
+        # Mix: narrator from file, char1 from DB:
+        curl -F narrator=@narrator.wav -F 'voice_ids={"char1":"uuid"}' ...
     """
     start = time.perf_counter()
     uploads = {"narrator": narrator, "char1": char1, "char2": char2, "char3": char3, "char4": char4}
 
     wav_bytes, sr, duration_sec, history_id, segments = await _parse_and_generate(
-        db, script, language, uploads, temperature, top_p, top_k, repetition_penalty,
+        db, script, language, uploads, voice_ids, temperature, top_p, top_k, repetition_penalty,
     )
 
     speakers = list(dict.fromkeys(seg["speaker"] for seg in segments))
@@ -127,6 +185,7 @@ async def comic_dub_audio(
     db: DB,
     _: ApiKey,
     script: str = Form(..., description='JSON: [{"speaker":"narrator","text":"..."},...]'),
+    voice_ids: str | None = Form(None, description='JSON: {"narrator":"voice-uuid","char1":"voice-uuid"}'),
     language: str = Form("en"),
     temperature: float = Form(0.7),
     top_p: float = Form(0.9),
@@ -142,7 +201,7 @@ async def comic_dub_audio(
     uploads = {"narrator": narrator, "char1": char1, "char2": char2, "char3": char3, "char4": char4}
 
     wav_bytes, sr, duration_sec, history_id, _ = await _parse_and_generate(
-        db, script, language, uploads, temperature, top_p, top_k, repetition_penalty,
+        db, script, language, uploads, voice_ids, temperature, top_p, top_k, repetition_penalty,
     )
 
     slots = engine_registry.gpu_slots("qwen")

@@ -308,25 +308,52 @@ curl -H "X-Api-Key: your-key" "http://localhost:8010/api/v1/tasks?status=pending
 
 ## 6. Comic Dubbing
 
-Generate multi-speaker dubbed audio for comics/stories. Upload voice reference audio for each speaker. Each segment is synthesized individually with voice cloning, then concatenated.
+Generate multi-speaker dubbed audio for comics/stories. Each segment is synthesized individually with voice cloning, then concatenated with 0.3s silence between segments.
+
+**Two ways to provide voices (can mix both):**
+1. Upload audio files directly: `narrator=@voice.wav`
+2. Use pre-uploaded voice IDs: `voice_ids={"narrator":"uuid"}`
+
+Uploaded files take priority over voice_ids.
 
 ### `POST /api/v1/comic/dub` — JSON response
 
+**Example 1: Upload audio files**
 ```bash
 curl -X POST http://localhost:8010/api/v1/comic/dub \
   -H "X-Api-Key: your-key" \
   -F 'script=[
     {"speaker":"narrator","text":"In a dark night, a figure appeared..."},
     {"speaker":"char1","text":"Stop! Who goes there?"},
-    {"speaker":"char2","text":"Just a traveler, nothing more."},
-    {"speaker":"narrator","text":"The stranger stepped into the light..."},
-    {"speaker":"char1","text":"State your name!"}
+    {"speaker":"char2","text":"Just a traveler, nothing more."}
   ]' \
   -F language=en \
-  -F temperature=0.7 \
   -F narrator=@narrator_voice.wav \
   -F char1=@hero_voice.wav \
   -F char2=@villain_voice.wav
+```
+
+**Example 2: Use voice IDs (from /api/v1/voices)**
+```bash
+curl -X POST http://localhost:8010/api/v1/comic/dub \
+  -H "X-Api-Key: your-key" \
+  -F 'script=[
+    {"speaker":"narrator","text":"In a dark night..."},
+    {"speaker":"char1","text":"Stop!"},
+    {"speaker":"char2","text":"Just a traveler."}
+  ]' \
+  -F 'voice_ids={"narrator":"550e8400-uuid","char1":"660e8400-uuid","char2":"770e8400-uuid"}' \
+  -F language=en
+```
+
+**Example 3: Mix both (narrator from file, characters from DB)**
+```bash
+curl -X POST http://localhost:8010/api/v1/comic/dub \
+  -H "X-Api-Key: your-key" \
+  -F 'script=[{"speaker":"narrator","text":"..."},{"speaker":"char1","text":"..."}]' \
+  -F 'voice_ids={"char1":"660e8400-uuid"}' \
+  -F language=en \
+  -F narrator=@narrator_voice.wav
 ```
 
 **Form Fields:**
@@ -334,16 +361,17 @@ curl -X POST http://localhost:8010/api/v1/comic/dub \
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `script` | JSON string | Yes | — | Array of `{speaker, text}` segments |
+| `voice_ids` | JSON string | No | null | Map speaker → voice UUID from DB |
 | `language` | string | No | "en" | Language code |
 | `temperature` | float | No | 0.7 | Creativity |
 | `top_p` | float | No | 0.9 | Nucleus sampling |
 | `top_k` | int | No | 50 | Top-K sampling |
 | `repetition_penalty` | float | No | 1.2 | Repetition penalty |
-| `narrator` | file | If used | — | Narrator voice reference WAV |
-| `char1` | file | If used | — | Character 1 voice reference WAV |
-| `char2` | file | If used | — | Character 2 voice reference WAV |
-| `char3` | file | If used | — | Character 3 voice reference WAV |
-| `char4` | file | If used | — | Character 4 voice reference WAV |
+| `narrator` | file | No | — | Narrator voice reference WAV |
+| `char1` | file | No | — | Character 1 voice reference WAV |
+| `char2` | file | No | — | Character 2 voice reference WAV |
+| `char3` | file | No | — | Character 3 voice reference WAV |
+| `char4` | file | No | — | Character 4 voice reference WAV |
 
 **Script format:**
 ```json
@@ -353,7 +381,7 @@ curl -X POST http://localhost:8010/api/v1/comic/dub \
 ]
 ```
 
-> Speaker names must match uploaded file field names. Max 5 speakers.
+> Each speaker must have either an uploaded file OR a voice_id. Max 5 speakers.
 
 **Response:**
 ```json
@@ -380,8 +408,8 @@ Same form fields. Returns raw WAV bytes directly.
 curl -X POST http://localhost:8010/api/v1/comic/dub/audio \
   -H "X-Api-Key: your-key" \
   -F 'script=[{"speaker":"narrator","text":"Once upon a time..."}]' \
+  -F 'voice_ids={"narrator":"550e8400-uuid"}' \
   -F language=en \
-  -F narrator=@voice.wav \
   --output comic_output.wav
 ```
 
