@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     max_concurrent_generations: int = 2
     generation_timeout_sec: int = 120
     max_concurrent_requests: int = 50
+    max_queue_size: int = 100
 
 
 settings = Settings()

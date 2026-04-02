@@ -10,6 +10,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.core.config import settings
 from app.core.database import async_session_factory, engine as db_engine
+from app.core.task_queue import task_queue
 from app.core.exceptions import (
     generic_exception_handler,
     http_exception_handler,
@@ -55,10 +56,15 @@ async def lifespan(app: FastAPI):
     except ImportError:
         pass
 
+    # 4. Start task queue workers
+    task_queue.start_workers(num_workers=settings.max_concurrent_generations)
+    logger.info("Task queue started")
+
     logger.info("%s started successfully", settings.app_name)
     yield
 
     # Shutdown
+    await task_queue.stop()
     logger.info("Shutting down %s...", settings.app_name)
     await engine_registry.shutdown()
     await db_engine.dispose()
@@ -151,12 +157,14 @@ app.add_middleware(
 # Register routers
 from app.modules.voices.router import router as voices_router
 from app.modules.tts.router import router as tts_router
+from app.modules.tts.task_router import router as task_router
 from app.modules.comic.router import router as comic_router
 from app.modules.history.router import router as history_router
 from app.ws.stream_handler import router as ws_router
 
 app.include_router(voices_router)
 app.include_router(tts_router)
+app.include_router(task_router)
 app.include_router(comic_router)
 app.include_router(history_router)
 app.include_router(ws_router)
@@ -171,4 +179,5 @@ async def health():
             "max_requests": settings.max_concurrent_requests,
             "gpu_slots": engine_registry.all_gpu_slots(),
         },
+        "queue": task_queue.queue_info(),
     }
