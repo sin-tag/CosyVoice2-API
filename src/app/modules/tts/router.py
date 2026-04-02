@@ -57,6 +57,16 @@ async def qwen_languages(_: ApiKey):
 # ──── Sync Generate ────
 
 
+def _slot_headers(engine_name: str) -> dict[str, str]:
+    """Return GPU slot info as response headers."""
+    slots = engine_registry.gpu_slots(engine_name)
+    return {
+        "X-GPU-Slots-Free": str(slots["free"]),
+        "X-GPU-Slots-Total": str(slots["total"]),
+        "X-GPU-Slots-Busy": str(slots["busy"]),
+    }
+
+
 @router.post("/moss/generate")
 async def generate_moss(body: TTSGenerateRequest, db: DB, _: ApiKey):
     wav_bytes, sr, history_id = await service.generate_speech(
@@ -67,7 +77,7 @@ async def generate_moss(body: TTSGenerateRequest, db: DB, _: ApiKey):
     return Response(
         content=wav_bytes,
         media_type="audio/wav",
-        headers={"X-History-Id": str(history_id), "X-Sample-Rate": str(sr)},
+        headers={"X-History-Id": str(history_id), "X-Sample-Rate": str(sr), **_slot_headers("moss")},
     )
 
 
@@ -81,7 +91,7 @@ async def generate_qwen(body: TTSGenerateRequest, db: DB, _: ApiKey):
     return Response(
         content=wav_bytes,
         media_type="audio/wav",
-        headers={"X-History-Id": str(history_id), "X-Sample-Rate": str(sr)},
+        headers={"X-History-Id": str(history_id), "X-Sample-Rate": str(sr), **_slot_headers("qwen")},
     )
 
 
@@ -130,9 +140,15 @@ async def _stream_tts(engine_name: str, body: TTSStreamRequest, db):
 
                     if first_chunk:
                         latency_ms = int((time.perf_counter() - start) * 1000)
+                        slots = engine_registry.gpu_slots(engine_name)
                         yield {
                             "event": "metadata",
-                            "data": json.dumps({"sample_rate": sr, "latency_ms": latency_ms}),
+                            "data": json.dumps({
+                                "sample_rate": sr,
+                                "latency_ms": latency_ms,
+                                "gpu_slots_free": slots["free"],
+                                "gpu_slots_total": slots["total"],
+                            }),
                         }
                         first_chunk = False
 
@@ -168,12 +184,14 @@ async def _stream_tts(engine_name: str, body: TTSStreamRequest, db):
                 sample_rate=sr,
             )
 
+            done_slots = engine_registry.gpu_slots(engine_name)
             yield {
                 "event": "done",
                 "data": json.dumps({
                     "total_time_ms": total_ms,
                     "audio_duration_sec": round(duration_sec, 2),
                     "history_id": str(record.id),
+                    "gpu_slots_free": done_slots["free"],
                 }),
             }
 
@@ -191,7 +209,7 @@ async def _stream_tts(engine_name: str, body: TTSStreamRequest, db):
             )
             yield {
                 "event": "error",
-                "data": json.dumps({"message": str(e)}),
+                "data": json.dumps({"message": "Internal server error"}),
             }
 
     return EventSourceResponse(event_generator())

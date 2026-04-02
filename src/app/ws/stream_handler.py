@@ -179,7 +179,7 @@ async def websocket_tts(ws: WebSocket, engine_name: str):
     except Exception as e:
         logger.error("WebSocket error: %s", e, exc_info=True)
         try:
-            await ws.send_json({"type": "error", "message": str(e)})
+            await ws.send_json({"type": "error", "message": "Internal server error"})
         except Exception:
             pass
         await ws.close()

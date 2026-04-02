@@ -16,10 +16,12 @@ class EngineRegistry:
     def __init__(self):
         self._engines: dict[str, TTSEngine] = {}
         self._semaphores: dict[str, asyncio.Semaphore] = {}
+        self._max_concurrent: int = 0
 
     async def initialize(self, config: Settings) -> None:
         """Load enabled engines sequentially (GPU memory must be allocated in order)."""
         gpu_concurrency = config.max_concurrent_generations
+        self._max_concurrent = gpu_concurrency
         logger.info("GPU semaphore concurrency: %d", gpu_concurrency)
 
         if config.moss_enabled:
@@ -89,6 +91,33 @@ class EngineRegistry:
     def get_semaphore(self, name: str) -> asyncio.Semaphore:
         return self._semaphores[name]
 
+    def gpu_slots(self, engine_name: str) -> dict:
+        """Return free/total GPU generation slots for an engine."""
+        sem = self._semaphores.get(engine_name)
+        if sem is None:
+            return {"free": 0, "total": 0}
+        # Semaphore._value tracks available permits
+        total = self._max_concurrent
+        free = sem._value
+        return {"free": free, "total": total, "busy": total - free}
+
+    def all_gpu_slots(self) -> dict[str, dict]:
+        """Return GPU slot info for all engines (deduped for shared semaphore)."""
+        seen: dict[int, str] = {}
+        result = {}
+        for name in self._engines:
+            sem = self._semaphores.get(name)
+            if sem is None:
+                continue
+            sem_id = id(sem)
+            if sem_id in seen:
+                # Shared semaphore — reference the first engine's entry
+                result[name] = result[seen[sem_id]]
+            else:
+                seen[sem_id] = name
+                result[name] = self.gpu_slots(name)
+        return result
+
     def list_engines(self) -> list[dict]:
         return [
             {
@@ -96,6 +125,7 @@ class EngineRegistry:
                 "loaded": engine.is_loaded(),
                 "languages": engine.supported_languages,
                 "cached_voices": voice_cache.get_cached_count(name),
+                "gpu_slots": self.gpu_slots(name),
             }
             for name, engine in self._engines.items()
         ]

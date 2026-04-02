@@ -79,7 +79,7 @@ class IPWhitelistMiddleware:
             if client_ip not in self.allowed:
                 logger.warning("Blocked request from %s", client_ip)
                 if scope["type"] == "http":
-                    resp = JSONResponse(status_code=403, content={"detail": f"IP {client_ip} not allowed"})
+                    resp = JSONResponse(status_code=403, content={"detail": "Access denied"})
                     await resp(scope, receive, send)
                     return
                 # WebSocket: reject by closing before accept
@@ -155,4 +155,8 @@ async def health():
     return {
         "status": "ok",
         "engines": engine_registry.list_engines(),
+        "concurrency": {
+            "max_requests": settings.max_concurrent_requests,
+            "gpu_slots": engine_registry.all_gpu_slots(),
+        },
     }
