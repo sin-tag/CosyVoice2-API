@@ -28,18 +28,18 @@ QWEN_LANG_MAP = {
 
 QWEN_LANG_CODES = list(QWEN_LANG_MAP.keys())
 
-# Default reference text per language — used when user doesn't provide ref_text
+# Short default reference text per language — keep short for speed
 QWEN_DEFAULT_REF_TEXT = {
-    "en": "This is a sample reference text for voice cloning. The quick brown fox jumps over the lazy dog.",
-    "zh": "这是一段用于语音克隆的参考文本。快速的棕色狐狸跳过了懒狗。",
-    "ja": "これは音声クローニングのためのサンプル参考テキストです。素早い茶色の狐が怠惰な犬を飛び越えます。",
-    "ko": "이것은 음성 복제를 위한 샘플 참조 텍스트입니다. 빠른 갈색 여우가 게으른 개를 뛰어넘습니다.",
-    "de": "Dies ist ein Beispielreferenztext zum Klonen von Stimmen. Der schnelle braune Fuchs springt über den faulen Hund.",
-    "fr": "Ceci est un texte de référence pour le clonage vocal. Le rapide renard brun saute par-dessus le chien paresseux.",
-    "ru": "Это образец справочного текста для клонирования голоса. Быстрая коричневая лиса перепрыгнула через ленивую собаку.",
-    "pt": "Este é um texto de referência para clonagem de voz. A rápida raposa marrom pula sobre o cachorro preguiçoso.",
-    "es": "Este es un texto de referencia para la clonación de voz. El rápido zorro marrón salta sobre el perro perezoso.",
-    "it": "Questo è un testo di riferimento per la clonazione vocale. La veloce volpe marrone salta sopra il cane pigro.",
+    "en": "Hello, how are you today?",
+    "zh": "你好，今天怎么样？",
+    "ja": "こんにちは、今日はどうですか？",
+    "ko": "안녕하세요, 오늘 어떠세요?",
+    "de": "Hallo, wie geht es Ihnen heute?",
+    "fr": "Bonjour, comment allez-vous aujourd'hui?",
+    "ru": "Здравствуйте, как у вас дела сегодня?",
+    "pt": "Olá, como você está hoje?",
+    "es": "Hola, cómo estás hoy?",
+    "it": "Ciao, come stai oggi?",
 }
 
 
@@ -77,6 +77,15 @@ class QwenEngine(TTSEngine):
             dtype_map = {"bfloat16": torch.bfloat16, "float16": torch.float16, "float32": torch.float32}
             torch_dtype = dtype_map.get(self._dtype, torch.bfloat16)
 
+            # Pick best attention implementation
+            try:
+                import flash_attn  # noqa: F401
+                attn_impl = "flash_attention_2"
+                logger.info("Using flash_attention_2 (fast)")
+            except ImportError:
+                attn_impl = "sdpa"
+                logger.info("flash-attn not installed, using sdpa (slower). Install: pip install flash-attn")
+
             # Try streaming fork first, fallback to official package
             try:
                 from qwen_tts_streaming import Qwen3TTSModel
@@ -85,7 +94,7 @@ class QwenEngine(TTSEngine):
                     self._model_path,
                     device_map=self._device,
                     dtype=torch_dtype,
-                    attn_implementation="sdpa",
+                    attn_implementation=attn_impl,
                 )
                 return model, True
             except ImportError:
@@ -97,7 +106,7 @@ class QwenEngine(TTSEngine):
                 self._model_path,
                 device_map=self._device,
                 dtype=torch_dtype,
-                attn_implementation="sdpa",
+                attn_implementation=attn_impl,
             )
             return model, False
 
@@ -126,15 +135,17 @@ class QwenEngine(TTSEngine):
         lang_name = self._resolve_language(language)
 
         def _generate():
+            import torch
             if voice_data is None:
                 raise ValueError("Qwen3-TTS Base model requires a reference voice (voice_id). Upload a voice first via POST /api/v1/voices")
             ref_text = voice_data.get("ref_text", "") or QWEN_DEFAULT_REF_TEXT.get(language, QWEN_DEFAULT_REF_TEXT["en"])
-            wavs, sr = self._model.generate_voice_clone(
-                text=text,
-                language=lang_name,
-                ref_audio=voice_data["ref_audio"],
-                ref_text=ref_text,
-            )
+            with torch.inference_mode():
+                wavs, sr = self._model.generate_voice_clone(
+                    text=text,
+                    language=lang_name,
+                    ref_audio=voice_data["ref_audio"],
+                    ref_text=ref_text,
+                )
 
             audio = wavs[0] if isinstance(wavs, (list, tuple)) else wavs
             if hasattr(audio, "cpu"):
@@ -216,33 +227,35 @@ class QwenEngine(TTSEngine):
         lang_name = self._resolve_language(language)
 
         def _generate_all():
+            import torch
             audio_parts = []
             sr = 24000
 
-            for seg in segments:
-                ref_path = speaker_refs.get(seg["speaker"])
-                if not ref_path:
-                    logger.warning("No ref audio for speaker '%s', skipping", seg["speaker"])
-                    continue
+            with torch.inference_mode():
+                for seg in segments:
+                    ref_path = speaker_refs.get(seg["speaker"])
+                    if not ref_path:
+                        logger.warning("No ref audio for speaker '%s', skipping", seg["speaker"])
+                        continue
 
-                ref_text = speaker_ref_texts.get(seg["speaker"], "") or QWEN_DEFAULT_REF_TEXT.get(language, QWEN_DEFAULT_REF_TEXT["en"])
-                wavs, sr = self._model.generate_voice_clone(
-                    text=seg["text"],
-                    language=lang_name,
-                    ref_audio=ref_path,
-                    ref_text=ref_text,
-                )
+                    ref_text = speaker_ref_texts.get(seg["speaker"], "") or QWEN_DEFAULT_REF_TEXT.get(language, QWEN_DEFAULT_REF_TEXT["en"])
+                    wavs, sr = self._model.generate_voice_clone(
+                        text=seg["text"],
+                        language=lang_name,
+                        ref_audio=ref_path,
+                        ref_text=ref_text,
+                    )
 
-                audio = wavs[0] if isinstance(wavs, (list, tuple)) else wavs
-                if hasattr(audio, "cpu"):
-                    audio = audio.cpu().numpy()
-                if audio.ndim > 1:
-                    audio = audio.squeeze()
-                audio_parts.append(audio.astype(np.float32))
+                    audio = wavs[0] if isinstance(wavs, (list, tuple)) else wavs
+                    if hasattr(audio, "cpu"):
+                        audio = audio.cpu().numpy()
+                    if audio.ndim > 1:
+                        audio = audio.squeeze()
+                    audio_parts.append(audio.astype(np.float32))
 
-                # Small silence between segments (0.3s)
-                silence = np.zeros(int(sr * 0.3), dtype=np.float32)
-                audio_parts.append(silence)
+                    # Small silence between segments (0.3s)
+                    silence = np.zeros(int(sr * 0.3), dtype=np.float32)
+                    audio_parts.append(silence)
 
             if not audio_parts:
                 raise RuntimeError("No audio segments generated")
