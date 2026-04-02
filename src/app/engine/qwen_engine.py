@@ -114,12 +114,17 @@ class QwenEngine(TTSEngine):
         def _generate():
             if voice_data is None:
                 raise ValueError("Qwen3-TTS Base model requires a reference voice (voice_id). Upload a voice first via POST /api/v1/voices")
-            wavs, sr = self._model.generate_voice_clone(
-                text=text,
-                language=lang_name,
-                ref_audio=voice_data["ref_audio"],
-                ref_text=voice_data.get("ref_text", ""),
-            )
+            ref_text = voice_data.get("ref_text", "")
+            clone_kwargs = {
+                "text": text,
+                "language": lang_name,
+                "ref_audio": voice_data["ref_audio"],
+            }
+            if ref_text:
+                clone_kwargs["ref_text"] = ref_text
+            else:
+                clone_kwargs["x_vector_only_mode"] = True
+            wavs, sr = self._model.generate_voice_clone(**clone_kwargs)
 
             audio = wavs[0] if isinstance(wavs, (list, tuple)) else wavs
             if hasattr(audio, "cpu"):
@@ -186,6 +191,7 @@ class QwenEngine(TTSEngine):
         segments: list[dict],
         speaker_refs: dict[str, str],
         language: str = "en",
+        speaker_ref_texts: dict[str, str] | None = None,
         **params,
     ) -> tuple[np.ndarray, int]:
         """Generate multi-speaker dialogue by running each segment individually then concatenating.
@@ -193,8 +199,10 @@ class QwenEngine(TTSEngine):
         Args:
             segments: [{"speaker": "narrator", "text": "..."}, ...]
             speaker_refs: {"narrator": "/path/to/ref.wav", ...}
+            speaker_ref_texts: {"narrator": "text spoken in ref audio", ...} (optional)
             language: ISO code
         """
+        speaker_ref_texts = speaker_ref_texts or {}
         lang_name = self._resolve_language(language)
 
         def _generate_all():
@@ -207,12 +215,17 @@ class QwenEngine(TTSEngine):
                     logger.warning("No ref audio for speaker '%s', skipping", seg["speaker"])
                     continue
 
-                wavs, sr = self._model.generate_voice_clone(
-                    text=seg["text"],
-                    language=lang_name,
-                    ref_audio=ref_path,
-                    ref_text="",
-                )
+                ref_text = speaker_ref_texts.get(seg["speaker"], "")
+                clone_kwargs = {
+                    "text": seg["text"],
+                    "language": lang_name,
+                    "ref_audio": ref_path,
+                }
+                if ref_text:
+                    clone_kwargs["ref_text"] = ref_text
+                else:
+                    clone_kwargs["x_vector_only_mode"] = True
+                wavs, sr = self._model.generate_voice_clone(**clone_kwargs)
 
                 audio = wavs[0] if isinstance(wavs, (list, tuple)) else wavs
                 if hasattr(audio, "cpu"):

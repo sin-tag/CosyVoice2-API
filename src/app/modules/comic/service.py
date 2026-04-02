@@ -19,6 +19,7 @@ async def generate_comic_audio(
     segments: list[dict],
     speaker_refs: dict[str, str],
     language: str,
+    speaker_ref_texts: dict[str, str] | None = None,
     **params,
 ) -> tuple[bytes, int, float, str]:
     """Generate comic dubbing: run each segment with Qwen voice clone, concatenate.
@@ -26,6 +27,7 @@ async def generate_comic_audio(
     Args:
         segments: [{"speaker": "narrator", "text": "..."}, ...]
         speaker_refs: {"narrator": "/tmp/narrator.wav", ...}
+        speaker_ref_texts: {"narrator": "text in ref audio", ...} (optional, improves quality)
 
     Returns: (wav_bytes, sample_rate, duration_sec, history_id)
     """
@@ -47,7 +49,7 @@ async def generate_comic_audio(
         try:
             logger.info("Comic dubbing (qwen): %d segments, %d speakers, gpu %d", len(segments), len(segment_speakers), gpu_idx)
             audio, sr = await asyncio.wait_for(
-                engine.generate_dialogue(segments, speaker_refs, language, **params),
+                engine.generate_dialogue(segments, speaker_refs, language, speaker_ref_texts=speaker_ref_texts, **params),
                 timeout=settings.generation_timeout_sec * len(segments),
             )
         finally:

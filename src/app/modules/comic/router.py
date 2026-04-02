@@ -42,6 +42,7 @@ async def _resolve_speaker_refs(
     Returns: (speaker_refs, temp_files_to_cleanup)
     """
     speaker_refs: dict[str, str] = {}
+    speaker_ref_texts: dict[str, str] = {}
     temp_files: list[str] = []
 
     for speaker in script_speakers:
@@ -60,6 +61,8 @@ async def _resolve_speaker_refs(
             if voice is None:
                 raise VoiceNotFoundError(str(vid))
             speaker_refs[speaker] = voice.reference_audio_path
+            if voice.reference_text:
+                speaker_ref_texts[speaker] = voice.reference_text
             continue
 
         # 3. Neither provided
@@ -69,7 +72,7 @@ async def _resolve_speaker_refs(
             error_code="missing_voice",
         )
 
-    return speaker_refs, temp_files
+    return speaker_refs, speaker_ref_texts, temp_files
 
 
 async def _parse_and_generate(
@@ -103,11 +106,12 @@ async def _parse_and_generate(
             raise AppError(400, f"Invalid voice_ids JSON: {e}", error_code="invalid_voice_ids")
 
     script_speakers = set(seg["speaker"] for seg in segments)
-    speaker_refs, temp_files = await _resolve_speaker_refs(db, script_speakers, uploads, voice_ids)
+    speaker_refs, speaker_ref_texts, temp_files = await _resolve_speaker_refs(db, script_speakers, uploads, voice_ids)
 
     try:
         wav_bytes, sr, duration_sec, history_id = await service.generate_comic_audio(
             db, segments, speaker_refs, language,
+            speaker_ref_texts=speaker_ref_texts,
             temperature=temperature, top_p=top_p, top_k=top_k,
             repetition_penalty=repetition_penalty,
         )
