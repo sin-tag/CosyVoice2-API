@@ -2,22 +2,13 @@ import asyncio
 import io
 import logging
 import time
-import uuid
 
-import numpy as np
 import soundfile as sf
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.exceptions import (
-    EngineNotLoadedError,
-    GenerationTimeoutError,
-    GPUOutOfMemoryError,
-    UnsupportedLanguageError,
-    VoiceNotFoundError,
-)
+from app.core.exceptions import GenerationTimeoutError, GPUOutOfMemoryError, UnsupportedLanguageError
 from app.engine.registry import engine_registry
-from app.models.voice import Voice
 from app.modules.tts.service import record_history
 
 logger = logging.getLogger(__name__)
@@ -26,44 +17,26 @@ logger = logging.getLogger(__name__)
 async def generate_comic_audio(
     db: AsyncSession,
     segments: list[dict],
-    voice_ids: dict[str, uuid.UUID],
+    speaker_refs: dict[str, str],
     language: str,
     **params,
-) -> tuple[bytes, int, float, uuid.UUID]:
-    """Generate comic dubbing audio.
+) -> tuple[bytes, int, float, str]:
+    """Generate comic dubbing audio from segments + speaker audio files.
+
+    Args:
+        segments: [{"speaker": "narrator", "text": "..."}, ...]
+        speaker_refs: {"narrator": "/tmp/narrator.wav", "char1": "/tmp/char1.wav", ...}
+        language: language code
 
     Returns: (wav_bytes, sample_rate, duration_sec, history_id)
     """
-    # Validate engine
     engine, semaphore, gpu_idx = engine_registry.pick("moss")
     meta_engine = engine_registry.get("moss")
 
     if not meta_engine.supports_language(language):
         raise UnsupportedLanguageError(language, "moss", meta_engine.supported_languages)
 
-    # Resolve voice_id → audio file path for each speaker
-    speaker_refs: dict[str, str] = {}
-    for speaker_name, vid in voice_ids.items():
-        voice = await db.get(Voice, str(vid))
-        if voice is None:
-            raise VoiceNotFoundError(str(vid))
-        speaker_refs[speaker_name] = voice.reference_audio_path
-
-    # Validate all speakers in segments have a voice
     segment_speakers = set(seg["speaker"] for seg in segments)
-    missing = segment_speakers - set(voice_ids.keys())
-    if missing:
-        from app.core.exceptions import AppError
-        raise AppError(400, f"Missing voice for speakers: {', '.join(missing)}", error_code="missing_voice")
-
-    if len(segment_speakers) > settings.moss_max_speakers:
-        from app.core.exceptions import AppError
-        raise AppError(
-            400,
-            f"Too many speakers: {len(segment_speakers)} (max {settings.moss_max_speakers})",
-            error_code="too_many_speakers",
-        )
-
     start = time.perf_counter()
 
     try:
@@ -90,12 +63,10 @@ async def generate_comic_audio(
         total_ms = int((time.perf_counter() - start) * 1000)
         duration_sec = len(audio) / sr
 
-        # Convert to WAV
         buf = io.BytesIO()
         sf.write(buf, audio, sr, format="WAV", subtype="PCM_16")
         wav_bytes = buf.getvalue()
 
-        # Record history
         record = await record_history(
             db,
             engine_name="moss",
