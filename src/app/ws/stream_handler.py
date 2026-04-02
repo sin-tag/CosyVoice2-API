@@ -81,14 +81,14 @@ async def websocket_tts(ws: WebSocket, engine_name: str):
             await ws.close()
             return
 
-        engine = engine_registry.get(engine_name)
+        meta_engine = engine_registry.get(engine_name)
 
-        if not engine.supports_language(language):
+        if not meta_engine.supports_language(language):
             await ws.send_json({
                 "message_type": "error",
                 "request_id": request_id,
                 "error_code": "unsupported_language",
-                "error_message": f"Language '{language}' not supported. Supported: {engine.supported_languages}",
+                "error_message": f"Language '{language}' not supported. Supported: {meta_engine.supported_languages}",
             })
             await ws.close()
             return
@@ -97,7 +97,7 @@ async def websocket_tts(ws: WebSocket, engine_name: str):
         voice_data = None
         if voice_id:
             async with async_session_factory() as db:
-                voice_data = await voice_cache.get_or_prepare(voice_id, engine, db)
+                voice_data = await voice_cache.get_or_prepare(voice_id, meta_engine, db)
             if voice_data is None:
                 await ws.send_json({
                     "message_type": "error",
@@ -108,9 +108,9 @@ async def websocket_tts(ws: WebSocket, engine_name: str):
                 await ws.close()
                 return
 
-        # Stream audio
+        # Pick least-busy GPU replica
+        engine, semaphore, gpu_idx = engine_registry.pick(engine_name)
         stop_event = threading.Event()
-        semaphore = engine_registry.get_semaphore(engine_name)
 
         start = time.perf_counter()
         chunk_index = 0

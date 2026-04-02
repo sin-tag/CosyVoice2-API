@@ -151,11 +151,13 @@ app.add_middleware(
 # Register routers
 from app.modules.voices.router import router as voices_router
 from app.modules.tts.router import router as tts_router
+from app.modules.comic.router import router as comic_router
 from app.modules.history.router import router as history_router
 from app.ws.stream_handler import router as ws_router
 
 app.include_router(voices_router)
 app.include_router(tts_router)
+app.include_router(comic_router)
 app.include_router(history_router)
 app.include_router(ws_router)
 

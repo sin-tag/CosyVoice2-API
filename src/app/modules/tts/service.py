@@ -60,41 +60,42 @@ async def generate_speech(
     import soundfile as sf
     import numpy as np
 
-    engine = engine_registry.get(engine_name)
+    # Use first replica for validation
+    meta_engine = engine_registry.get(engine_name)
 
     from app.core.exceptions import UnsupportedLanguageError
-    if not engine.supports_language(language):
-        raise UnsupportedLanguageError(language, engine_name, engine.supported_languages)
+    if not meta_engine.supports_language(language):
+        raise UnsupportedLanguageError(language, engine_name, meta_engine.supported_languages)
 
-    # Get voice data from cache
+    # Get voice data from cache (uses first replica)
     voice_data = None
     if voice_id:
         from app.core.exceptions import VoiceNotCompatibleError
-        voice_data = await voice_cache.get_or_prepare(voice_id, engine, db)
+        voice_data = await voice_cache.get_or_prepare(voice_id, meta_engine, db)
         if voice_data is None:
             raise VoiceNotCompatibleError(str(voice_id), engine_name)
 
-    semaphore = engine_registry.get_semaphore(engine_name)
+    # Pick least-busy GPU replica
+    engine, semaphore, gpu_idx = engine_registry.pick(engine_name)
     from app.core.config import settings
     start = time.perf_counter()
 
     try:
-        # Wait for semaphore with timeout (don't let users wait forever in queue)
         try:
             await asyncio.wait_for(semaphore.acquire(), timeout=settings.generation_timeout_sec)
         except asyncio.TimeoutError:
-            logger.warning("Semaphore wait timed out for engine '%s' — GPU queue full", engine_name)
+            logger.warning("Semaphore wait timed out for engine '%s' gpu %d — GPU queue full", engine_name, gpu_idx)
             from app.core.exceptions import GenerationTimeoutError
             raise GenerationTimeoutError()
 
         try:
+            logger.debug("Generating on %s gpu %d", engine_name, gpu_idx)
             audio, sr = await asyncio.wait_for(
                 engine.generate(text, language, voice_data, **params),
                 timeout=settings.generation_timeout_sec,
             )
         finally:
             semaphore.release()
-            # Free fragmented GPU memory after each generation
             try:
                 import torch
                 if torch.cuda.is_available():

@@ -145,19 +145,20 @@ async def _stream_tts(engine_name: str, body: TTSStreamRequest, db):
       - synthesis_complete: {history_id, duration, synthesis_time, gpu_slots_free}
       - error:           {error, message}
     """
-    engine = engine_registry.get(engine_name)
+    meta_engine = engine_registry.get(engine_name)
 
-    if not engine.supports_language(body.language):
-        raise UnsupportedLanguageError(body.language, engine_name, engine.supported_languages)
+    if not meta_engine.supports_language(body.language):
+        raise UnsupportedLanguageError(body.language, engine_name, meta_engine.supported_languages)
 
     voice_data = None
     if body.voice_id:
-        voice_data = await voice_cache.get_or_prepare(body.voice_id, engine, db)
+        voice_data = await voice_cache.get_or_prepare(body.voice_id, meta_engine, db)
         if voice_data is None:
             raise VoiceNotCompatibleError(str(body.voice_id), engine_name)
 
     params = body.generation_params()
-    semaphore = engine_registry.get_semaphore(engine_name)
+    # Pick least-busy GPU for streaming
+    engine, semaphore, gpu_idx = engine_registry.pick(engine_name)
 
     async def event_generator():
         start = time.perf_counter()
