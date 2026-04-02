@@ -89,6 +89,7 @@ def _task_response(task) -> dict:
         "queue_position": task.queue_position,
         "progress": task.progress,
         "message": task.message,
+        "gpu_id": task.gpu_id,
         "created_at": task.created_at,
         "started_at": task.started_at,
         "completed_at": task.completed_at,
@@ -104,7 +105,6 @@ def _task_response(task) -> dict:
         num_samples = (len(wav_bytes) - 44) // 2
         resp["duration"] = round(num_samples / sr, 2) if sr > 0 else 0
         resp["sample_rate"] = sr
-    # Queue info for pending
     if task.status == TaskStatus.PENDING:
         resp["check_status_url"] = f"/api/v1/tasks/{task.task_id}"
     return resp
