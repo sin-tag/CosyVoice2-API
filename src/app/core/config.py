@@ -33,18 +33,6 @@ class Settings(BaseSettings):
     voices_storage_path: str = "./storage/voices"
     history_storage_path: str = "./storage/history"
 
-    # MOSS-TTSD (dialogue/dubbing model, comma-separated devices for multi-GPU)
-    moss_enabled: bool = True
-    moss_model_path: str = "OpenMOSS-Team/MOSS-TTSD-v1.0"
-    moss_device: str = "cuda:0"
-    moss_dtype: str = "bfloat16"
-    moss_max_speakers: int = 5
-    moss_max_new_tokens: int = 2000
-    moss_default_temperature: float = 1.1
-    moss_default_top_p: float = 0.9
-    moss_default_top_k: int = 50
-    moss_default_repetition_penalty: float = 1.1
-
     # Qwen3-TTS (device: comma-separated for multi-GPU, e.g. "cuda:0,cuda:1")
     qwen_enabled: bool = True
     qwen_model_path: str = "Qwen/Qwen3-TTS-12Hz-0.6B-Base"

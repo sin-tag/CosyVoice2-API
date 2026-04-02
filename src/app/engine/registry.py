@@ -94,27 +94,6 @@ class EngineRegistry:
                 self._pools["qwen"] = _EnginePool("qwen", replicas, gpu_concurrency)
                 logger.info("Qwen registered: %d GPU(s)", len(replicas))
 
-        if config.moss_enabled:
-            devices = [d.strip() for d in config.moss_device.split(",") if d.strip()]
-            replicas = []
-            for device in devices:
-                from app.engine.moss_engine import MossEngine
-                engine = MossEngine(
-                    model_path=config.moss_model_path,
-                    device=device,
-                    dtype=config.moss_dtype,
-                )
-                try:
-                    await engine.load_model()
-                    replicas.append(engine)
-                    logger.info("MOSS engine loaded on %s", device)
-                except Exception:
-                    logger.error("Failed to load MOSS on %s", device, exc_info=True)
-
-            if replicas:
-                self._pools["moss"] = _EnginePool("moss", replicas, gpu_concurrency)
-                logger.info("MOSS registered: %d GPU(s)", len(replicas))
-
     async def warm_cache(self, db: AsyncSession) -> None:
         for pool in self._pools.values():
             # Warm cache using first replica

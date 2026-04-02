@@ -42,12 +42,6 @@ async def list_engines(_: ApiKey):
     return engine_registry.list_engines()
 
 
-@router.get("/moss/languages", response_model=LanguageListResponse)
-async def moss_languages(_: ApiKey):
-    engine = engine_registry.get("moss")
-    return LanguageListResponse(engine="moss", languages=engine.supported_languages)
-
-
 @router.get("/qwen/languages", response_model=LanguageListResponse)
 async def qwen_languages(_: ApiKey):
     engine = engine_registry.get("qwen")
@@ -89,32 +83,10 @@ async def _generate(engine_name: str, body: TTSGenerateRequest, db):
     )
 
 
-@router.post("/moss/generate", response_model=SynthesisResponse)
-async def generate_moss(body: TTSGenerateRequest, db: DB, _: ApiKey):
-    wav_bytes, sr, resp = await _generate("moss", body, db)
-    return resp
-
-
 @router.post("/qwen/generate", response_model=SynthesisResponse)
 async def generate_qwen(body: TTSGenerateRequest, db: DB, _: ApiKey):
     wav_bytes, sr, resp = await _generate("qwen", body, db)
     return resp
-
-
-@router.post("/moss/generate/audio")
-async def generate_moss_audio(body: TTSGenerateRequest, db: DB, _: ApiKey):
-    """Return raw WAV audio bytes (for direct playback)."""
-    wav_bytes, sr, resp = await _generate("moss", body, db)
-    return Response(
-        content=wav_bytes,
-        media_type="audio/wav",
-        headers={
-            "X-History-Id": resp.history_id or "",
-            "X-Sample-Rate": str(sr),
-            "X-GPU-Slots-Free": str(resp.gpu_slots_free),
-            "X-GPU-Slots-Total": str(resp.gpu_slots_total),
-        },
-    )
 
 
 @router.post("/qwen/generate/audio")
@@ -266,11 +238,6 @@ async def _stream_tts(engine_name: str, body: TTSStreamRequest, db):
             }
 
     return EventSourceResponse(event_generator())
-
-
-@router.post("/moss/stream")
-async def stream_moss(body: TTSStreamRequest, db: DB, _: ApiKey):
-    return await _stream_tts("moss", body, db)
 
 
 @router.post("/qwen/stream")
