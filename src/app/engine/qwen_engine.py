@@ -28,6 +28,20 @@ QWEN_LANG_MAP = {
 
 QWEN_LANG_CODES = list(QWEN_LANG_MAP.keys())
 
+# Default reference text per language — used when user doesn't provide ref_text
+QWEN_DEFAULT_REF_TEXT = {
+    "en": "This is a sample reference text for voice cloning. The quick brown fox jumps over the lazy dog.",
+    "zh": "这是一段用于语音克隆的参考文本。快速的棕色狐狸跳过了懒狗。",
+    "ja": "これは音声クローニングのためのサンプル参考テキストです。素早い茶色の狐が怠惰な犬を飛び越えます。",
+    "ko": "이것은 음성 복제를 위한 샘플 참조 텍스트입니다. 빠른 갈색 여우가 게으른 개를 뛰어넘습니다.",
+    "de": "Dies ist ein Beispielreferenztext zum Klonen von Stimmen. Der schnelle braune Fuchs springt über den faulen Hund.",
+    "fr": "Ceci est un texte de référence pour le clonage vocal. Le rapide renard brun saute par-dessus le chien paresseux.",
+    "ru": "Это образец справочного текста для клонирования голоса. Быстрая коричневая лиса перепрыгнула через ленивую собаку.",
+    "pt": "Este é um texto de referência para clonagem de voz. A rápida raposa marrom pula sobre o cachorro preguiçoso.",
+    "es": "Este es un texto de referencia para la clonación de voz. El rápido zorro marrón salta sobre el perro perezoso.",
+    "it": "Questo è un testo di riferimento per la clonazione vocale. La veloce volpe marrone salta sopra il cane pigro.",
+}
+
 
 class QwenEngine(TTSEngine):
     """Adapter for Qwen/Qwen3-TTS-12Hz-0.6B-Base.
@@ -114,17 +128,13 @@ class QwenEngine(TTSEngine):
         def _generate():
             if voice_data is None:
                 raise ValueError("Qwen3-TTS Base model requires a reference voice (voice_id). Upload a voice first via POST /api/v1/voices")
-            ref_text = voice_data.get("ref_text", "")
-            clone_kwargs = {
-                "text": text,
-                "language": lang_name,
-                "ref_audio": voice_data["ref_audio"],
-            }
-            if ref_text:
-                clone_kwargs["ref_text"] = ref_text
-            else:
-                clone_kwargs["x_vector_only_mode"] = True
-            wavs, sr = self._model.generate_voice_clone(**clone_kwargs)
+            ref_text = voice_data.get("ref_text", "") or QWEN_DEFAULT_REF_TEXT.get(language, QWEN_DEFAULT_REF_TEXT["en"])
+            wavs, sr = self._model.generate_voice_clone(
+                text=text,
+                language=lang_name,
+                ref_audio=voice_data["ref_audio"],
+                ref_text=ref_text,
+            )
 
             audio = wavs[0] if isinstance(wavs, (list, tuple)) else wavs
             if hasattr(audio, "cpu"):
@@ -215,17 +225,13 @@ class QwenEngine(TTSEngine):
                     logger.warning("No ref audio for speaker '%s', skipping", seg["speaker"])
                     continue
 
-                ref_text = speaker_ref_texts.get(seg["speaker"], "")
-                clone_kwargs = {
-                    "text": seg["text"],
-                    "language": lang_name,
-                    "ref_audio": ref_path,
-                }
-                if ref_text:
-                    clone_kwargs["ref_text"] = ref_text
-                else:
-                    clone_kwargs["x_vector_only_mode"] = True
-                wavs, sr = self._model.generate_voice_clone(**clone_kwargs)
+                ref_text = speaker_ref_texts.get(seg["speaker"], "") or QWEN_DEFAULT_REF_TEXT.get(language, QWEN_DEFAULT_REF_TEXT["en"])
+                wavs, sr = self._model.generate_voice_clone(
+                    text=seg["text"],
+                    language=lang_name,
+                    ref_audio=ref_path,
+                    ref_text=ref_text,
+                )
 
                 audio = wavs[0] if isinstance(wavs, (list, tuple)) else wavs
                 if hasattr(audio, "cpu"):
