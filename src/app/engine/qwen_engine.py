@@ -181,6 +181,59 @@ class QwenEngine(TTSEngine):
                 break
             yield chunk
 
+    async def generate_dialogue(
+        self,
+        segments: list[dict],
+        speaker_refs: dict[str, str],
+        language: str = "en",
+        **params,
+    ) -> tuple[np.ndarray, int]:
+        """Generate multi-speaker dialogue by running each segment individually then concatenating.
+
+        Args:
+            segments: [{"speaker": "narrator", "text": "..."}, ...]
+            speaker_refs: {"narrator": "/path/to/ref.wav", ...}
+            language: ISO code
+        """
+        lang_name = self._resolve_language(language)
+
+        def _generate_all():
+            audio_parts = []
+            sr = 24000
+
+            for seg in segments:
+                ref_path = speaker_refs.get(seg["speaker"])
+                if not ref_path:
+                    logger.warning("No ref audio for speaker '%s', skipping", seg["speaker"])
+                    continue
+
+                wavs, sr = self._model.generate_voice_clone(
+                    text=seg["text"],
+                    language=lang_name,
+                    ref_audio=ref_path,
+                    ref_text="",
+                )
+
+                audio = wavs[0] if isinstance(wavs, (list, tuple)) else wavs
+                if hasattr(audio, "cpu"):
+                    audio = audio.cpu().numpy()
+                if audio.ndim > 1:
+                    audio = audio.squeeze()
+                audio_parts.append(audio.astype(np.float32))
+
+                # Small silence between segments (0.3s)
+                silence = np.zeros(int(sr * 0.3), dtype=np.float32)
+                audio_parts.append(silence)
+
+            if not audio_parts:
+                raise RuntimeError("No audio segments generated")
+
+            # Remove trailing silence
+            audio_parts = audio_parts[:-1]
+            return np.concatenate(audio_parts), sr
+
+        return await asyncio.to_thread(_generate_all)
+
     async def prepare_voice(self, audio_path: str, reference_text: str | None = None) -> Any:
         """For Qwen, voice data includes reference audio path and text."""
         return {
