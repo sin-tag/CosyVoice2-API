@@ -7,7 +7,7 @@ from app.models.base import Base, TimestampMixin, UUIDMixin
 class Voice(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "voices"
 
-    name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     language: Mapped[str] = mapped_column(String(10), nullable=False)
     reference_audio_path: Mapped[str] = mapped_column(String(500), nullable=False)
