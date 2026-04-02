@@ -20,7 +20,7 @@ QWEN_LANG_CODES = list(QWEN_LANG_MAP.keys())
 DEFAULT_REF_TEXT = "Hello, how are you today? Nice to meet you."
 
 # Max ref audio duration in seconds — longer audio is auto-trimmed for speed
-MAX_REF_AUDIO_SEC = 8
+MAX_REF_AUDIO_SEC = 5
 
 
 class QwenEngine(TTSEngine):
