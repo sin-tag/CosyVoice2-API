@@ -18,3 +18,4 @@ storage/history/
 .claude/
 *.wav
 storage/
+*.mp3

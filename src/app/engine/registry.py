@@ -73,26 +73,26 @@ class EngineRegistry:
         self._max_concurrent = gpu_concurrency
         logger.info("GPU semaphore concurrency per device: %d", gpu_concurrency)
 
-        if config.qwen_enabled:
-            devices = [d.strip() for d in config.qwen_device.split(",") if d.strip()]
+        if config.omni_enabled:
+            devices = [d.strip() for d in config.omni_device.split(",") if d.strip()]
             replicas = []
             for device in devices:
-                from app.engine.qwen_engine import QwenEngine
-                engine = QwenEngine(
-                    model_path=config.qwen_model_path,
+                from app.engine.omni_engine import OmniVoiceEngine
+                engine = OmniVoiceEngine(
+                    model_path=config.omni_model_path,
                     device=device,
-                    dtype=config.qwen_dtype,
+                    dtype=config.omni_dtype,
                 )
                 try:
                     await engine.load_model()
                     replicas.append(engine)
-                    logger.info("Qwen engine loaded on %s", device)
+                    logger.info("OmniVoice loaded on %s", device)
                 except Exception:
-                    logger.error("Failed to load Qwen on %s", device, exc_info=True)
+                    logger.error("Failed to load OmniVoice on %s", device, exc_info=True)
 
             if replicas:
-                self._pools["qwen"] = _EnginePool("qwen", replicas, gpu_concurrency)
-                logger.info("Qwen registered: %d GPU(s)", len(replicas))
+                self._pools["omni"] = _EnginePool("omni", replicas, gpu_concurrency)
+                logger.info("OmniVoice registered: %d GPU(s)", len(replicas))
 
     async def warm_cache(self, db: AsyncSession) -> None:
         for pool in self._pools.values():

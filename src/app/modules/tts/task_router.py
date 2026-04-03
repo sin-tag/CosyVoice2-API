@@ -24,15 +24,15 @@ router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
 # ──── Submit async TTS ────
 
 
-@router.post("/tts/qwen")
-async def submit_qwen_task(body: TTSGenerateRequest, db: DB, _: ApiKey):
-    """Submit a Qwen TTS task to the queue. Returns task_id + status immediately."""
+@router.post("/tts/omni")
+async def submit_omni_task(body: TTSGenerateRequest, db: DB, _: ApiKey):
+    """Submit an OmniVoice TTS task to the queue. Returns task_id + status immediately."""
     task = await task_queue.submit(
         generate_speech,
-        db, "qwen", body.text, body.language, body.voice_id,
+        db, "omni", body.text, body.language, body.voice_id,
         temperature=body.temperature, top_p=body.top_p, top_k=body.top_k,
         repetition_penalty=body.repetition_penalty,
-        meta={"engine": "qwen", "text": body.text[:80], "language": body.language},
+        meta={"engine": "omni", "text": body.text[:80], "language": body.language},
     )
     return _task_response(task)
 

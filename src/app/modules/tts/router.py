@@ -42,10 +42,10 @@ async def list_engines(_: ApiKey):
     return engine_registry.list_engines()
 
 
-@router.get("/qwen/languages", response_model=LanguageListResponse)
-async def qwen_languages(_: ApiKey):
-    engine = engine_registry.get("qwen")
-    return LanguageListResponse(engine="qwen", languages=engine.supported_languages)
+@router.get("/omni/languages", response_model=LanguageListResponse)
+async def omni_languages(_: ApiKey):
+    engine = engine_registry.get("omni")
+    return LanguageListResponse(engine="omni", languages=engine.supported_languages)
 
 
 # ──── Sync Generate ────
@@ -83,16 +83,16 @@ async def _generate(engine_name: str, body: TTSGenerateRequest, db):
     )
 
 
-@router.post("/qwen/generate", response_model=SynthesisResponse)
-async def generate_qwen(body: TTSGenerateRequest, db: DB, _: ApiKey):
-    wav_bytes, sr, resp = await _generate("qwen", body, db)
+@router.post("/omni/generate", response_model=SynthesisResponse)
+async def generate_omni(body: TTSGenerateRequest, db: DB, _: ApiKey):
+    wav_bytes, sr, resp = await _generate("omni", body, db)
     return resp
 
 
-@router.post("/qwen/generate/audio")
-async def generate_qwen_audio(body: TTSGenerateRequest, db: DB, _: ApiKey):
+@router.post("/omni/generate/audio")
+async def generate_omni_audio(body: TTSGenerateRequest, db: DB, _: ApiKey):
     """Return raw WAV audio bytes (for direct playback)."""
-    wav_bytes, sr, resp = await _generate("qwen", body, db)
+    wav_bytes, sr, resp = await _generate("omni", body, db)
     return Response(
         content=wav_bytes,
         media_type="audio/wav",
@@ -240,6 +240,6 @@ async def _stream_tts(engine_name: str, body: TTSStreamRequest, db):
     return EventSourceResponse(event_generator())
 
 
-@router.post("/qwen/stream")
-async def stream_qwen(body: TTSStreamRequest, db: DB, _: ApiKey):
-    return await _stream_tts("qwen", body, db)
+@router.post("/omni/stream")
+async def stream_omni(body: TTSStreamRequest, db: DB, _: ApiKey):
+    return await _stream_tts("omni", body, db)

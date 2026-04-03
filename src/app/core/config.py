@@ -33,11 +33,11 @@ class Settings(BaseSettings):
     voices_storage_path: str = "./storage/voices"
     history_storage_path: str = "./storage/history"
 
-    # Qwen3-TTS (device: comma-separated for multi-GPU, e.g. "cuda:0,cuda:1")
-    qwen_enabled: bool = True
-    qwen_model_path: str = "Qwen/Qwen3-TTS-12Hz-0.6B-Base"
-    qwen_device: str = "cuda:0"
-    qwen_dtype: str = "bfloat16"
+    # OmniVoice (600+ languages, voice cloning + voice design)
+    omni_enabled: bool = True
+    omni_model_path: str = "k2-fsa/OmniVoice"
+    omni_device: str = "cuda:0"
+    omni_dtype: str = "float16"
 
     # Audio
     default_sample_rate: int = 24000

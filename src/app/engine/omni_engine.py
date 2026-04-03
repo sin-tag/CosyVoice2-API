@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -9,59 +10,48 @@ from app.engine.base import TTSEngine
 
 logger = logging.getLogger(__name__)
 
-QWEN_LANG_MAP = {
-    "zh": "Chinese", "en": "English", "ja": "Japanese", "ko": "Korean",
-    "de": "German", "fr": "French", "ru": "Russian", "pt": "Portuguese",
-    "es": "Spanish", "it": "Italian",
-}
-QWEN_LANG_CODES = list(QWEN_LANG_MAP.keys())
-
-# Default ref_text when user doesn't provide one
-DEFAULT_REF_TEXT = "Hello, how are you today? Nice to meet you."
-
-# Max ref audio duration in seconds — longer audio is auto-trimmed for speed
+# Max ref audio duration — auto-trim for speed
 MAX_REF_AUDIO_SEC = 5
 
+DEFAULT_REF_TEXT = "Hello, how are you today? Nice to meet you."
 
-class QwenEngine(TTSEngine):
-    """Thin wrapper around qwen_tts.Qwen3TTSModel — matches official example exactly."""
 
-    name = "qwen"
-    supported_languages = QWEN_LANG_CODES
+class OmniVoiceEngine(TTSEngine):
+    """Adapter for k2-fsa/OmniVoice.
 
-    def __init__(self, model_path: str, device: str = "cuda:0", dtype: str = "bfloat16"):
+    600+ languages, zero-shot voice cloning + voice design, RTF ~0.025.
+    Based on Qwen3-0.6B with diffusion, 24kHz output.
+    """
+
+    name = "omni"
+    supported_languages = [
+        "en", "zh", "ja", "ko", "de", "fr", "ru", "pt", "es", "it",
+        "ar", "hi", "vi", "th", "pl", "nl", "sv", "da", "fi", "no",
+    ]  # Top 20, but model supports 600+
+
+    def __init__(self, model_path: str, device: str = "cuda:0", dtype: str = "float16"):
         self._model_path = model_path
         self._device = device
         self._dtype = dtype
         self._model = None
 
     async def load_model(self) -> None:
-        logger.info("Loading Qwen3-TTS from %s on %s...", self._model_path, self._device)
+        logger.info("Loading OmniVoice from %s on %s...", self._model_path, self._device)
 
         def _load():
             import torch
-            from qwen_tts import Qwen3TTSModel
+            from omnivoice import OmniVoice
 
-            dtype_map = {"bfloat16": torch.bfloat16, "float16": torch.float16, "float32": torch.float32}
-
-            # Auto-detect flash_attention_2
-            try:
-                import flash_attn  # noqa: F401
-                attn = "flash_attention_2"
-            except ImportError:
-                attn = "sdpa"
-                logger.warning("flash-attn not installed, using sdpa. Install for 2-3x speed: pip install flash-attn")
-
-            model = Qwen3TTSModel.from_pretrained(
+            dtype_map = {"float16": torch.float16, "bfloat16": torch.bfloat16, "float32": torch.float32}
+            model = OmniVoice.from_pretrained(
                 self._model_path,
                 device_map=self._device,
-                dtype=dtype_map.get(self._dtype, torch.bfloat16),
-                attn_implementation=attn,
+                dtype=dtype_map.get(self._dtype, torch.float16),
             )
             return model
 
         self._model = await asyncio.to_thread(_load)
-        logger.info("Qwen3-TTS loaded on %s", self._device)
+        logger.info("OmniVoice loaded on %s", self._device)
 
     async def unload_model(self) -> None:
         if self._model is not None:
@@ -73,18 +63,13 @@ class QwenEngine(TTSEngine):
     def is_loaded(self) -> bool:
         return self._model is not None
 
-    def _lang(self, code: str) -> str:
-        return QWEN_LANG_MAP.get(code, "English")
-
     def _trim_ref_audio(self, audio_path: str) -> str:
-        """Trim ref audio to MAX_REF_AUDIO_SEC if too long. Returns path (original or trimmed)."""
+        """Trim ref audio to MAX_REF_AUDIO_SEC if too long."""
         import soundfile as sf
         info = sf.info(audio_path)
         if info.duration <= MAX_REF_AUDIO_SEC:
             return audio_path
 
-        import os
-        # Create trimmed version next to original
         base, ext = os.path.splitext(audio_path)
         trimmed_path = f"{base}_trimmed{ext}"
         if os.path.exists(trimmed_path):
@@ -92,10 +77,10 @@ class QwenEngine(TTSEngine):
 
         data, sr = sf.read(audio_path, stop=int(MAX_REF_AUDIO_SEC * info.samplerate))
         sf.write(trimmed_path, data, sr)
-        logger.info("Trimmed ref audio from %.1fs to %.1fs: %s", info.duration, MAX_REF_AUDIO_SEC, trimmed_path)
+        logger.info("Trimmed ref audio from %.1fs to %.1fs", info.duration, MAX_REF_AUDIO_SEC)
         return trimmed_path
 
-    # ──── Core: exactly like the official example ────
+    # ──── Generate ────
 
     async def generate(
         self, text: str, language: str, voice_data: Any | None = None, **params,
@@ -103,23 +88,41 @@ class QwenEngine(TTSEngine):
         if voice_data is None:
             raise ValueError("Voice required. Upload via POST /api/v1/voices first.")
 
-        lang = self._lang(language)
         ref_audio = self._trim_ref_audio(voice_data["ref_audio"])
         ref_text = voice_data.get("ref_text", "") or DEFAULT_REF_TEXT
 
         def _run():
             import torch
             with torch.inference_mode():
-                wavs, sr = self._model.generate_voice_clone(
+                audio_list = self._model.generate(
                     text=text,
-                    language=lang,
                     ref_audio=ref_audio,
                     ref_text=ref_text,
+                    language_id=language,
                 )
-            audio = wavs[0] if isinstance(wavs, (list, tuple)) else wavs
+            audio = audio_list[0]
             if hasattr(audio, "cpu"):
                 audio = audio.cpu().numpy()
-            return audio.squeeze().astype(np.float32), sr
+            return audio.squeeze().astype(np.float32), 24000
+
+        return await asyncio.to_thread(_run)
+
+    async def generate_with_design(
+        self, text: str, instruct: str, language: str = "en", **params,
+    ) -> tuple[np.ndarray, int]:
+        """Generate speech with voice design (no reference audio needed)."""
+        def _run():
+            import torch
+            with torch.inference_mode():
+                audio_list = self._model.generate(
+                    text=text,
+                    instruct=instruct,
+                    language_id=language,
+                )
+            audio = audio_list[0]
+            if hasattr(audio, "cpu"):
+                audio = audio.cpu().numpy()
+            return audio.squeeze().astype(np.float32), 24000
 
         return await asyncio.to_thread(_run)
 
@@ -131,9 +134,8 @@ class QwenEngine(TTSEngine):
         speaker_ref_texts: dict[str, str] | None = None,
         **params,
     ) -> tuple[np.ndarray, int]:
-        """Generate each segment with voice clone, concatenate with silence."""
+        """Generate each segment with voice clone, concatenate."""
         speaker_ref_texts = speaker_ref_texts or {}
-        lang = self._lang(language)
 
         def _run():
             import torch
@@ -146,25 +148,24 @@ class QwenEngine(TTSEngine):
                     if not ref_path:
                         continue
                     ref_path = self._trim_ref_audio(ref_path)
-
                     ref_text = speaker_ref_texts.get(seg["speaker"], "") or DEFAULT_REF_TEXT
 
-                    wavs, sr = self._model.generate_voice_clone(
+                    audio_list = self._model.generate(
                         text=seg["text"],
-                        language=lang,
                         ref_audio=ref_path,
                         ref_text=ref_text,
+                        language_id=language,
                     )
 
-                    audio = wavs[0] if isinstance(wavs, (list, tuple)) else wavs
+                    audio = audio_list[0]
                     if hasattr(audio, "cpu"):
                         audio = audio.cpu().numpy()
                     parts.append(audio.squeeze().astype(np.float32))
-                    parts.append(np.zeros(int(sr * 0.3), dtype=np.float32))  # 0.3s silence
+                    parts.append(np.zeros(int(sr * 0.3), dtype=np.float32))
 
             if not parts:
                 raise RuntimeError("No audio generated")
-            return np.concatenate(parts[:-1]), sr  # remove trailing silence
+            return np.concatenate(parts[:-1]), sr
 
         return await asyncio.to_thread(_run)
 
