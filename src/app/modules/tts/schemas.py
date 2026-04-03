@@ -10,17 +10,19 @@ class TTSGenerateRequest(BaseModel):
     text: str = Field(..., max_length=5000)
     language: str = Field(..., max_length=10)
     voice_id: uuid.UUID | None = None
+    speed: float = Field(0.8, ge=0.3, le=2.0, description="Speech speed: <1.0 slower, >1.0 faster (default 0.8)")
     temperature: float = Field(0.7, ge=0.0, le=2.0)
     top_p: float = Field(0.9, ge=0.0, le=1.0)
     top_k: int = Field(50, ge=1, le=500)
     repetition_penalty: float = Field(1.2, ge=1.0, le=3.0)
-    output_format: str = Field("wav", pattern="^(wav|pcm)$")
+    output_format: str = Field("mp3", pattern="^(mp3|wav|pcm)$")
 
 
 class TTSStreamRequest(BaseModel):
     text: str = Field(..., max_length=5000)
     language: str = Field(..., max_length=10)
     voice_id: uuid.UUID | None = None
+    speed: float = Field(0.8, ge=0.3, le=2.0, description="Speech speed: <1.0 slower, >1.0 faster (default 0.8)")
     temperature: float = Field(0.7, ge=0.0, le=2.0)
     top_p: float = Field(0.9, ge=0.0, le=1.0)
     top_k: int = Field(50, ge=1, le=500)

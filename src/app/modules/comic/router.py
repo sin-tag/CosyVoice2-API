@@ -81,6 +81,7 @@ async def _parse_and_generate(
     language: str,
     uploads: dict[str, UploadFile | None],
     voice_ids_json: str | None,
+    speed: float,
     temperature: float,
     top_p: float,
     top_k: int,
@@ -112,7 +113,7 @@ async def _parse_and_generate(
         wav_bytes, sr, duration_sec, history_id = await service.generate_comic_audio(
             db, segments, speaker_refs, language,
             speaker_ref_texts=speaker_ref_texts,
-            temperature=temperature, top_p=top_p, top_k=top_k,
+            speed=speed, temperature=temperature, top_p=top_p, top_k=top_k,
             repetition_penalty=repetition_penalty,
         )
         return wav_bytes, sr, duration_sec, history_id, segments
@@ -135,6 +136,7 @@ async def comic_dub(
     top_p: float = Form(0.9),
     top_k: int = Form(50),
     repetition_penalty: float = Form(1.2),
+    speed: float = Form(0.8, description="Speech speed: <1.0 slower (default 0.8)"),
     narrator: UploadFile | None = None,
     char1: UploadFile | None = None,
     char2: UploadFile | None = None,
@@ -163,7 +165,7 @@ async def comic_dub(
     uploads = {"narrator": narrator, "char1": char1, "char2": char2, "char3": char3, "char4": char4}
 
     wav_bytes, sr, duration_sec, history_id, segments = await _parse_and_generate(
-        db, script, language, uploads, voice_ids, temperature, top_p, top_k, repetition_penalty,
+        db, script, language, uploads, voice_ids, speed, temperature, top_p, top_k, repetition_penalty,
     )
 
     speakers = list(dict.fromkeys(seg["speaker"] for seg in segments))
@@ -195,6 +197,7 @@ async def comic_dub_audio(
     top_p: float = Form(0.9),
     top_k: int = Form(50),
     repetition_penalty: float = Form(1.2),
+    speed: float = Form(0.8, description="Speech speed: <1.0 slower (default 0.8)"),
     narrator: UploadFile | None = None,
     char1: UploadFile | None = None,
     char2: UploadFile | None = None,
@@ -205,7 +208,7 @@ async def comic_dub_audio(
     uploads = {"narrator": narrator, "char1": char1, "char2": char2, "char3": char3, "char4": char4}
 
     wav_bytes, sr, duration_sec, history_id, _ = await _parse_and_generate(
-        db, script, language, uploads, voice_ids, temperature, top_p, top_k, repetition_penalty,
+        db, script, language, uploads, voice_ids, speed, temperature, top_p, top_k, repetition_penalty,
     )
 
     slots = engine_registry.gpu_slots("omni")

@@ -56,7 +56,7 @@ async def _generate(engine_name: str, body: TTSGenerateRequest, db):
     start = time.perf_counter()
     wav_bytes, sr, history_id = await service.generate_speech(
         db, engine_name, body.text, body.language, body.voice_id,
-        temperature=body.temperature, top_p=body.top_p, top_k=body.top_k,
+        speed=body.speed, temperature=body.temperature, top_p=body.top_p, top_k=body.top_k,
         repetition_penalty=body.repetition_penalty,
     )
     synthesis_time = round(time.perf_counter() - start, 3)

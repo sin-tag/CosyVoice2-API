@@ -114,6 +114,7 @@ class OmniVoiceEngine(TTSEngine):
         ref_audio = _download_if_url(voice_data["ref_audio"])
         ref_audio = self._trim_ref_audio(ref_audio)
         ref_text = voice_data.get("ref_text", "") or DEFAULT_REF_TEXT
+        speed = params.get("speed", 0.8)
 
         def _run():
             import torch
@@ -123,6 +124,7 @@ class OmniVoiceEngine(TTSEngine):
                     ref_audio=ref_audio,
                     ref_text=ref_text,
                     language_id=language,
+                    speed=speed,
                 )
             audio = audio_list[0]
             if hasattr(audio, "cpu"):
@@ -160,6 +162,7 @@ class OmniVoiceEngine(TTSEngine):
     ) -> tuple[np.ndarray, int]:
         """Generate each segment with voice clone, concatenate."""
         speaker_ref_texts = speaker_ref_texts or {}
+        speed = params.get("speed", 0.8)
 
         def _run():
             import torch
@@ -180,6 +183,7 @@ class OmniVoiceEngine(TTSEngine):
                         ref_audio=ref_path,
                         ref_text=ref_text,
                         language_id=language,
+                        speed=speed,
                     )
 
                     audio = audio_list[0]
