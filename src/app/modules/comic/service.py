@@ -1,11 +1,9 @@
 import asyncio
-import io
 import logging
 import os
 import time
 import uuid
 
-import soundfile as sf
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -66,17 +64,17 @@ async def generate_comic_audio(
         total_ms = int((time.perf_counter() - start) * 1000)
         duration_sec = len(audio) / sr
 
-        buf = io.BytesIO()
-        sf.write(buf, audio, sr, format="WAV", subtype="PCM_16")
-        wav_bytes = buf.getvalue()
+        from app.core.audio_utils import audio_to_mp3
+
+        mp3_bytes = audio_to_mp3(audio, sr)
 
         # Save to disk for later download
         history_id = str(uuid.uuid4())
-        audio_dir = os.path.join(settings.history_storage_path)
+        audio_dir = settings.history_storage_path
         os.makedirs(audio_dir, exist_ok=True)
-        audio_path = os.path.join(audio_dir, f"{history_id}.wav")
+        audio_path = os.path.join(audio_dir, f"{history_id}.mp3")
         with open(audio_path, "wb") as f:
-            f.write(wav_bytes)
+            f.write(mp3_bytes)
 
         record = await record_history(
             db,
@@ -92,7 +90,7 @@ async def generate_comic_audio(
             audio_path=audio_path,
         )
 
-        return wav_bytes, sr, duration_sec, record.id
+        return mp3_bytes, sr, duration_sec, record.id
 
     except asyncio.TimeoutError:
         await record_history(

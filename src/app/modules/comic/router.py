@@ -211,7 +211,7 @@ async def comic_dub_audio(
     slots = engine_registry.gpu_slots("omni")
     return Response(
         content=wav_bytes,
-        media_type="audio/wav",
+        media_type="audio/mpeg",
         headers={
             "X-History-Id": str(history_id),
             "X-Sample-Rate": str(sr),
@@ -238,7 +238,7 @@ async def download_comic_audio(db: DB, _: ApiKey, history_id: str):
 
     return Response(
         content=content,
-        media_type="audio/wav",
+        media_type="audio/mpeg",
         headers={
             "X-History-Id": history_id,
             "X-Sample-Rate": str(record.sample_rate or 24000),

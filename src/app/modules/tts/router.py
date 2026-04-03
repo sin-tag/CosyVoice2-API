@@ -95,7 +95,7 @@ async def generate_omni_audio(body: TTSGenerateRequest, db: DB, _: ApiKey):
     wav_bytes, sr, resp = await _generate("omni", body, db)
     return Response(
         content=wav_bytes,
-        media_type="audio/wav",
+        media_type="audio/mpeg",
         headers={
             "X-History-Id": resp.history_id or "",
             "X-Sample-Rate": str(sr),
@@ -124,7 +124,7 @@ async def download_audio(db: DB, _: ApiKey, history_id: str):
 
     return Response(
         content=content,
-        media_type="audio/wav",
+        media_type="audio/mpeg",
         headers={"X-History-Id": history_id, "X-Sample-Rate": str(record.sample_rate or 24000)},
     )
 

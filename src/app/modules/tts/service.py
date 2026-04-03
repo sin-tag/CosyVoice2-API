@@ -58,8 +58,6 @@ async def generate_speech(
     **params,
 ) -> tuple[bytes, int, uuid.UUID]:
     """Generate speech synchronously. Returns (wav_bytes, sample_rate, history_id)."""
-    import io
-    import soundfile as sf
     import numpy as np
 
     # Use first replica for validation
@@ -108,19 +106,19 @@ async def generate_speech(
         total_ms = int((time.perf_counter() - start) * 1000)
         duration_sec = len(audio) / sr
 
-        # Convert to WAV bytes
-        buf = io.BytesIO()
-        sf.write(buf, audio, sr, format="WAV", subtype="PCM_16")
-        wav_bytes = buf.getvalue()
+        # Convert to MP3
+        from app.core.audio_utils import audio_to_mp3, save_audio_mp3
+        import os
+
+        mp3_bytes = audio_to_mp3(audio, sr)
 
         # Save to disk for download via audio_url
-        import os
         history_id = str(uuid.uuid4())
         audio_dir = settings.history_storage_path
         os.makedirs(audio_dir, exist_ok=True)
-        audio_path = os.path.join(audio_dir, f"{history_id}.wav")
+        audio_path = os.path.join(audio_dir, f"{history_id}.mp3")
         with open(audio_path, "wb") as f:
-            f.write(wav_bytes)
+            f.write(mp3_bytes)
 
         # Record history
         record = await record_history(
@@ -137,7 +135,7 @@ async def generate_speech(
             audio_path=audio_path,
         )
 
-        return wav_bytes, sr, record.id
+        return mp3_bytes, sr, record.id
 
     except asyncio.TimeoutError:
         await record_history(
