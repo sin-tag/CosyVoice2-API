@@ -20,10 +20,12 @@ class VoiceCache:
     """
 
     def __init__(self):
-        self._cache: dict[str, dict[str, Any]] = {
-            "moss": {},
-            "qwen": {},
-        }
+        self._cache: dict[str, dict[str, Any]] = {}
+
+    def _ensure_engine(self, engine_name: str) -> dict[str, Any]:
+        if engine_name not in self._cache:
+            self._cache[engine_name] = {}
+        return self._cache[engine_name]
 
     async def warm_from_db(self, db: AsyncSession, engine: TTSEngine) -> int:
         """Load all cached voice embeddings from disk into memory on startup."""
@@ -40,7 +42,7 @@ class VoiceCache:
                 continue
             try:
                 voice_data = await engine.load_cached_voice(cache_path)
-                self._cache[engine_name][voice.id] = voice_data
+                self._ensure_engine(engine_name)[voice.id] = voice_data
                 count += 1
             except Exception:
                 logger.warning("Failed to load cached voice %s for engine %s", voice.id, engine_name, exc_info=True)
@@ -59,8 +61,8 @@ class VoiceCache:
         vid = str(voice_id)
 
         # Tier 1: Memory
-        if vid in self._cache[engine_name]:
-            return self._cache[engine_name][vid]
+        if vid in self._ensure_engine(engine_name):
+            return self._ensure_engine(engine_name)[vid]
 
         # Load voice record from DB
         voice = await db.get(Voice, vid)
@@ -73,7 +75,7 @@ class VoiceCache:
         if cache_path:
             try:
                 voice_data = await engine.load_cached_voice(cache_path)
-                self._cache[engine_name][vid] = voice_data
+                self._ensure_engine(engine_name)[vid] = voice_data
                 return voice_data
             except Exception:
                 logger.warning("Disk cache miss for voice %s engine %s, recomputing", vid, engine_name)
@@ -94,14 +96,14 @@ class VoiceCache:
         await db.commit()
 
         # Populate memory cache
-        self._cache[engine_name][vid] = voice_data
+        self._ensure_engine(engine_name)[vid] = voice_data
         logger.info("Computed and cached voice %s for engine '%s'", vid, engine_name)
 
         return voice_data
 
     def add(self, voice_id: uuid.UUID | str, engine_name: str, voice_data: Any) -> None:
         """Add a pre-computed voice embedding to the in-memory cache."""
-        self._cache[engine_name][str(voice_id)] = voice_data
+        self._ensure_engine(engine_name)[str(voice_id)] = voice_data
 
     def remove(self, voice_id: uuid.UUID | str) -> None:
         """Remove a voice from all engine caches."""
