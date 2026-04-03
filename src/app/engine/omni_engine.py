@@ -16,6 +16,29 @@ MAX_REF_AUDIO_SEC = 5
 DEFAULT_REF_TEXT = "Hello, how are you today? Nice to meet you."
 
 
+def _download_if_url(path_or_url: str, storage_dir: str = "./storage/voices") -> str:
+    """If path_or_url is a URL, download to local storage. Otherwise return as-is."""
+    if not path_or_url.startswith(("http://", "https://")):
+        return path_or_url
+
+    import hashlib
+    import urllib.request
+
+    os.makedirs(storage_dir, exist_ok=True)
+    # Deterministic filename from URL
+    url_hash = hashlib.md5(path_or_url.encode()).hexdigest()[:12]
+    ext = os.path.splitext(path_or_url.split("?")[0])[1] or ".wav"
+    local_path = os.path.join(storage_dir, f"dl_{url_hash}{ext}")
+
+    if os.path.exists(local_path):
+        return local_path
+
+    logger.info("Downloading ref audio: %s", path_or_url)
+    urllib.request.urlretrieve(path_or_url, local_path)
+    logger.info("Saved to %s", local_path)
+    return local_path
+
+
 class OmniVoiceEngine(TTSEngine):
     """Adapter for k2-fsa/OmniVoice.
 
@@ -88,7 +111,8 @@ class OmniVoiceEngine(TTSEngine):
         if voice_data is None:
             raise ValueError("Voice required. Upload via POST /api/v1/voices first.")
 
-        ref_audio = self._trim_ref_audio(voice_data["ref_audio"])
+        ref_audio = _download_if_url(voice_data["ref_audio"])
+        ref_audio = self._trim_ref_audio(ref_audio)
         ref_text = voice_data.get("ref_text", "") or DEFAULT_REF_TEXT
 
         def _run():
@@ -147,6 +171,7 @@ class OmniVoiceEngine(TTSEngine):
                     ref_path = speaker_refs.get(seg["speaker"])
                     if not ref_path:
                         continue
+                    ref_path = _download_if_url(ref_path)
                     ref_path = self._trim_ref_audio(ref_path)
                     ref_text = speaker_ref_texts.get(seg["speaker"], "") or DEFAULT_REF_TEXT
 
@@ -178,6 +203,7 @@ class OmniVoiceEngine(TTSEngine):
     # ──── Voice cache ────
 
     async def prepare_voice(self, audio_path: str, reference_text: str | None = None) -> Any:
+        audio_path = _download_if_url(audio_path)
         return {"ref_audio": audio_path, "ref_text": reference_text or ""}
 
     async def load_cached_voice(self, cache_path: str) -> Any:
