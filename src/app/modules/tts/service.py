@@ -26,6 +26,7 @@ async def record_history(
     audio_duration_sec: float | None = None,
     sample_rate: int = 24000,
     error_message: str | None = None,
+    audio_path: str | None = None,
 ) -> GenerationHistory:
     """Record a generation in history."""
     record = GenerationHistory(
@@ -40,6 +41,7 @@ async def record_history(
         audio_duration_sec=audio_duration_sec,
         sample_rate=sample_rate,
         error_message=error_message,
+        audio_path=audio_path,
     )
     db.add(record)
     await db.commit()
@@ -111,6 +113,15 @@ async def generate_speech(
         sf.write(buf, audio, sr, format="WAV", subtype="PCM_16")
         wav_bytes = buf.getvalue()
 
+        # Save to disk for download via audio_url
+        import os
+        history_id = str(uuid.uuid4())
+        audio_dir = settings.history_storage_path
+        os.makedirs(audio_dir, exist_ok=True)
+        audio_path = os.path.join(audio_dir, f"{history_id}.wav")
+        with open(audio_path, "wb") as f:
+            f.write(wav_bytes)
+
         # Record history
         record = await record_history(
             db,
@@ -123,6 +134,7 @@ async def generate_speech(
             total_time_ms=total_ms,
             audio_duration_sec=duration_sec,
             sample_rate=sr,
+            audio_path=audio_path,
         )
 
         return wav_bytes, sr, record.id

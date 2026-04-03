@@ -105,6 +105,30 @@ async def generate_omni_audio(body: TTSGenerateRequest, db: DB, _: ApiKey):
     )
 
 
+@router.get("/audio/{history_id}")
+async def download_audio(db: DB, _: ApiKey, history_id: str):
+    """Download previously generated TTS audio by history_id."""
+    import os
+    import aiofiles
+    from app.core.exceptions import AppError
+    from app.models.generation import GenerationHistory
+
+    record = await db.get(GenerationHistory, history_id)
+    if record is None or not record.audio_path:
+        raise AppError(404, f"Audio not found for '{history_id}'", error_code="audio_not_found")
+    if not os.path.exists(record.audio_path):
+        raise AppError(404, "Audio file missing from disk", error_code="audio_not_found")
+
+    async with aiofiles.open(record.audio_path, "rb") as f:
+        content = await f.read()
+
+    return Response(
+        content=content,
+        media_type="audio/wav",
+        headers={"X-History-Id": history_id, "X-Sample-Rate": str(record.sample_rate or 24000)},
+    )
+
+
 # ──── SSE Stream ────
 
 

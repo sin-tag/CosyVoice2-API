@@ -1,7 +1,9 @@
 import asyncio
 import io
 import logging
+import os
 import time
+import uuid
 
 import soundfile as sf
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -68,6 +70,14 @@ async def generate_comic_audio(
         sf.write(buf, audio, sr, format="WAV", subtype="PCM_16")
         wav_bytes = buf.getvalue()
 
+        # Save to disk for later download
+        history_id = str(uuid.uuid4())
+        audio_dir = os.path.join(settings.history_storage_path)
+        os.makedirs(audio_dir, exist_ok=True)
+        audio_path = os.path.join(audio_dir, f"{history_id}.wav")
+        with open(audio_path, "wb") as f:
+            f.write(wav_bytes)
+
         record = await record_history(
             db,
             engine_name="omni",
@@ -79,6 +89,7 @@ async def generate_comic_audio(
             total_time_ms=total_ms,
             audio_duration_sec=duration_sec,
             sample_rate=sr,
+            audio_path=audio_path,
         )
 
         return wav_bytes, sr, duration_sec, record.id
