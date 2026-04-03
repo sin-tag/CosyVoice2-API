@@ -105,9 +105,9 @@ async def generate_omni_audio(body: TTSGenerateRequest, db: DB, _: ApiKey):
     )
 
 
-@router.get("/audio/{history_id}")
-async def download_audio(db: DB, _: ApiKey, history_id: str):
-    """Download previously generated TTS audio by history_id."""
+@router.api_route("/audio/{history_id}", methods=["GET", "HEAD"])
+async def download_audio(db: DB, history_id: str):
+    """Download previously generated TTS audio by history_id. No auth required."""
     import os
     import aiofiles
     from app.core.exceptions import AppError
@@ -125,7 +125,11 @@ async def download_audio(db: DB, _: ApiKey, history_id: str):
     return Response(
         content=content,
         media_type="audio/mpeg",
-        headers={"X-History-Id": history_id, "X-Sample-Rate": str(record.sample_rate or 24000)},
+        headers={
+            "Content-Length": str(len(content)),
+            "X-History-Id": history_id,
+            "X-Sample-Rate": str(record.sample_rate or 24000),
+        },
     )
 
 

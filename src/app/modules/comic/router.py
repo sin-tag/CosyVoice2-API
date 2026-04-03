@@ -222,9 +222,9 @@ async def comic_dub_audio(
     )
 
 
-@router.get("/audio/{history_id}")
-async def download_comic_audio(db: DB, _: ApiKey, history_id: str):
-    """Download previously generated comic dubbing audio by history_id."""
+@router.api_route("/audio/{history_id}", methods=["GET", "HEAD"])
+async def download_comic_audio(db: DB, history_id: str):
+    """Download previously generated comic dubbing audio by history_id. No auth required."""
     from app.models.generation import GenerationHistory
     record = await db.get(GenerationHistory, history_id)
     if record is None or not record.audio_path:
@@ -240,6 +240,7 @@ async def download_comic_audio(db: DB, _: ApiKey, history_id: str):
         content=content,
         media_type="audio/mpeg",
         headers={
+            "Content-Length": str(len(content)),
             "X-History-Id": history_id,
             "X-Sample-Rate": str(record.sample_rate or 24000),
             "X-Duration": str(round(record.audio_duration_sec or 0, 2)),
