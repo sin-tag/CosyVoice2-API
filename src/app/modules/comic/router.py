@@ -169,7 +169,7 @@ async def comic_dub(
     )
 
     speakers = list(dict.fromkeys(seg["speaker"] for seg in segments))
-    slots = engine_registry.gpu_slots("omni")
+    slots = engine_registry.gpu_slots("qwen")
 
     return ComicDubbingResponse(
         success=True,
@@ -211,7 +211,7 @@ async def comic_dub_audio(
         db, script, language, uploads, voice_ids, speed, temperature, top_p, top_k, repetition_penalty,
     )
 
-    slots = engine_registry.gpu_slots("omni")
+    slots = engine_registry.gpu_slots("qwen")
     return Response(
         content=wav_bytes,
         media_type="audio/mpeg",

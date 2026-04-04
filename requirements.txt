@@ -12,4 +12,4 @@ soundfile>=0.12.1
 numpy>=1.26.0
 aiofiles>=24.1.0
 pydub>=0.25.0
-omnivoice>=0.1.0
+qwen-tts>=0.1.0

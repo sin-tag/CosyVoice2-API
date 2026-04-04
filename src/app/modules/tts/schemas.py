@@ -37,6 +37,15 @@ class TTSStreamRequest(BaseModel):
         }
 
 
+class CustomVoiceRequest(BaseModel):
+    """Generate with built-in speaker + emotion instruct (no ref audio needed)."""
+    text: str = Field(..., max_length=5000)
+    language: str = Field(..., max_length=10)
+    speaker: str = Field("Vivian", description="Built-in speaker name")
+    instruct: str = Field("", description="Emotion/style instruction, e.g. '用特别愤怒的语气说'")
+    speed: float = Field(0.8, ge=0.3, le=2.0)
+
+
 # ──── Response Schemas (aligned with chatterbox branch) ────
 
 

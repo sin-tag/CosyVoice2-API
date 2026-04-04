@@ -16,6 +16,7 @@ from app.engine.registry import engine_registry
 from app.engine.voice_cache import voice_cache
 from app.modules.tts import service
 from app.modules.tts.schemas import (
+    CustomVoiceRequest,
     EngineInfoResponse,
     LanguageListResponse,
     SynthesisResponse,
@@ -42,10 +43,10 @@ async def list_engines(_: ApiKey):
     return engine_registry.list_engines()
 
 
-@router.get("/omni/languages", response_model=LanguageListResponse)
-async def omni_languages(_: ApiKey):
-    engine = engine_registry.get("omni")
-    return LanguageListResponse(engine="omni", languages=engine.supported_languages)
+@router.get("/qwen/languages", response_model=LanguageListResponse)
+async def qwen_languages(_: ApiKey):
+    engine = engine_registry.get("qwen")
+    return LanguageListResponse(engine="qwen", languages=engine.supported_languages)
 
 
 # ──── Sync Generate ────
@@ -83,16 +84,74 @@ async def _generate(engine_name: str, body: TTSGenerateRequest, db):
     )
 
 
-@router.post("/omni/generate", response_model=SynthesisResponse)
-async def generate_omni(body: TTSGenerateRequest, db: DB, _: ApiKey):
-    wav_bytes, sr, resp = await _generate("omni", body, db)
+@router.post("/qwen/custom", response_model=SynthesisResponse)
+async def generate_custom_voice(body: CustomVoiceRequest, db: DB, _: ApiKey):
+    """Generate with built-in speaker + emotion instruct. No ref audio needed.
+
+    Example: {"text": "Hello!", "language": "zh", "speaker": "Vivian", "instruct": "用愤怒的语气说"}
+    """
+    start = time.perf_counter()
+    engine, semaphore, gpu_idx = engine_registry.pick("qwen")
+
+    import asyncio
+    try:
+        await asyncio.wait_for(semaphore.acquire(), timeout=settings.generation_timeout_sec)
+    except asyncio.TimeoutError:
+        from app.core.exceptions import GenerationTimeoutError
+        raise GenerationTimeoutError()
+
+    try:
+        audio, sr = await engine.generate_custom(
+            body.text, body.language, speaker=body.speaker, instruct=body.instruct, speed=body.speed,
+        )
+    finally:
+        semaphore.release()
+        try:
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except ImportError:
+            pass
+
+    from app.core.audio_utils import audio_to_mp3
+    import os, uuid as _uuid
+    mp3_bytes = audio_to_mp3(audio, sr)
+
+    history_id = str(_uuid.uuid4())
+    audio_dir = settings.history_storage_path
+    os.makedirs(audio_dir, exist_ok=True)
+    audio_path = os.path.join(audio_dir, f"{history_id}.mp3")
+    with open(audio_path, "wb") as f:
+        f.write(mp3_bytes)
+
+    record = await service.record_history(
+        db, engine_name="qwen", text=body.text, language=body.language, voice_id=None,
+        parameters={"speaker": body.speaker, "instruct": body.instruct, "speed": body.speed},
+        status="completed", total_time_ms=int((time.perf_counter() - start) * 1000),
+        audio_duration_sec=len(audio) / sr, sample_rate=sr, audio_path=audio_path,
+    )
+
+    slots = engine_registry.gpu_slots("qwen")
+    return SynthesisResponse(
+        success=True, message="Custom voice synthesis completed",
+        audio_url=f"/api/v1/tts/audio/{record.id}",
+        duration=round(len(audio) / sr, 2), format="mp3",
+        synthesis_time=round(time.perf_counter() - start, 3),
+        sample_rate=sr, history_id=str(record.id),
+        gpu_slots_free=slots["free"], gpu_slots_total=slots["total"],
+    )
+
+
+@router.post("/qwen/generate", response_model=SynthesisResponse)
+async def generate_qwen(body: TTSGenerateRequest, db: DB, _: ApiKey):
+    wav_bytes, sr, resp = await _generate("qwen", body, db)
     return resp
 
 
-@router.post("/omni/generate/audio")
-async def generate_omni_audio(body: TTSGenerateRequest, db: DB, _: ApiKey):
+@router.post("/qwen/generate/audio")
+async def generate_qwen_audio(body: TTSGenerateRequest, db: DB, _: ApiKey):
     """Return raw WAV audio bytes (for direct playback)."""
-    wav_bytes, sr, resp = await _generate("omni", body, db)
+    wav_bytes, sr, resp = await _generate("qwen", body, db)
     return Response(
         content=wav_bytes,
         media_type="audio/mpeg",
@@ -268,6 +327,6 @@ async def _stream_tts(engine_name: str, body: TTSStreamRequest, db):
     return EventSourceResponse(event_generator())
 
 
-@router.post("/omni/stream")
-async def stream_omni(body: TTSStreamRequest, db: DB, _: ApiKey):
-    return await _stream_tts("omni", body, db)
+@router.post("/qwen/stream")
+async def stream_qwen(body: TTSStreamRequest, db: DB, _: ApiKey):
+    return await _stream_tts("qwen", body, db)
