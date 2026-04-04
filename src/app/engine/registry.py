@@ -73,26 +73,25 @@ class EngineRegistry:
         self._max_concurrent = gpu_concurrency
         logger.info("GPU semaphore concurrency per device: %d", gpu_concurrency)
 
-        if config.omni_enabled:
-            devices = [d.strip() for d in config.omni_device.split(",") if d.strip()]
+        if config.xtts_enabled:
+            devices = [d.strip() for d in config.xtts_device.split(",") if d.strip()]
             replicas = []
             for device in devices:
-                from app.engine.omni_engine import OmniVoiceEngine
-                engine = OmniVoiceEngine(
-                    model_path=config.omni_model_path,
+                from app.engine.xtts_engine import XttsEngine
+                engine = XttsEngine(
+                    model_path=config.xtts_model_path,
                     device=device,
-                    dtype=config.omni_dtype,
                 )
                 try:
                     await engine.load_model()
                     replicas.append(engine)
-                    logger.info("OmniVoice loaded on %s", device)
+                    logger.info("XTTS-v2 loaded on %s", device)
                 except Exception:
-                    logger.error("Failed to load OmniVoice on %s", device, exc_info=True)
+                    logger.error("Failed to load XTTS-v2 on %s", device, exc_info=True)
 
             if replicas:
-                self._pools["omni"] = _EnginePool("omni", replicas, gpu_concurrency)
-                logger.info("OmniVoice registered: %d GPU(s)", len(replicas))
+                self._pools["xtts"] = _EnginePool("xtts", replicas, gpu_concurrency)
+                logger.info("XTTS-v2 registered: %d GPU(s)", len(replicas))
 
     async def warm_cache(self, db: AsyncSession) -> None:
         for pool in self._pools.values():

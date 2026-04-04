@@ -57,7 +57,7 @@ async def lifespan(app: FastAPI):
         pass
 
     # 4. Start task queue workers — one per GPU
-    pool = engine_registry._pools.get("omni")
+    pool = engine_registry._pools.get("xtts")
     if pool:
         gpu_devices = [r._device for r in pool.replicas if hasattr(r, '_device')]
         task_queue.start_workers(

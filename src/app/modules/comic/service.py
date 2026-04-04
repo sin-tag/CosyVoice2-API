@@ -31,11 +31,11 @@ async def generate_comic_audio(
 
     Returns: (wav_bytes, sample_rate, duration_sec, history_id)
     """
-    engine, semaphore, gpu_idx = engine_registry.pick("omni")
-    meta_engine = engine_registry.get("omni")
+    engine, semaphore, gpu_idx = engine_registry.pick("xtts")
+    meta_engine = engine_registry.get("xtts")
 
     if not meta_engine.supports_language(language):
-        raise UnsupportedLanguageError(language, "omni", meta_engine.supported_languages)
+        raise UnsupportedLanguageError(language, "xtts", meta_engine.supported_languages)
 
     segment_speakers = set(seg["speaker"] for seg in segments)
     start = time.perf_counter()
@@ -78,7 +78,7 @@ async def generate_comic_audio(
 
         record = await record_history(
             db,
-            engine_name="omni",
+            engine_name="xtts",
             text=f"[comic:{len(segments)}seg:{len(segment_speakers)}spk]",
             language=language,
             voice_id=None,
@@ -94,7 +94,7 @@ async def generate_comic_audio(
 
     except asyncio.TimeoutError:
         await record_history(
-            db, engine_name="omni", text=f"[comic:{len(segments)}seg]", language=language,
+            db, engine_name="xtts", text=f"[comic:{len(segments)}seg]", language=language,
             voice_id=None, parameters={}, status="failed", error_message="Generation timed out",
         )
         raise GenerationTimeoutError()
@@ -102,12 +102,12 @@ async def generate_comic_audio(
     except Exception as e:
         if "CUDA out of memory" in str(e):
             await record_history(
-                db, engine_name="omni", text=f"[comic:{len(segments)}seg]", language=language,
+                db, engine_name="xtts", text=f"[comic:{len(segments)}seg]", language=language,
                 voice_id=None, parameters={}, status="failed", error_message="GPU out of memory",
             )
             raise GPUOutOfMemoryError()
         await record_history(
-            db, engine_name="omni", text=f"[comic:{len(segments)}seg]", language=language,
+            db, engine_name="xtts", text=f"[comic:{len(segments)}seg]", language=language,
             voice_id=None, parameters={}, status="failed", error_message=str(e),
         )
         raise

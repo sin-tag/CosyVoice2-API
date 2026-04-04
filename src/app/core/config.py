@@ -33,11 +33,10 @@ class Settings(BaseSettings):
     voices_storage_path: str = "./storage/voices"
     history_storage_path: str = "./storage/history"
 
-    # OmniVoice (600+ languages, voice cloning + voice design)
-    omni_enabled: bool = True
-    omni_model_path: str = "k2-fsa/OmniVoice"
-    omni_device: str = "cuda:0"
-    omni_dtype: str = "float16"
+    # XTTS-v2 (17 languages, voice cloning, streaming)
+    xtts_enabled: bool = True
+    xtts_model_path: str = "tts_models/multilingual/multi-dataset/xtts_v2"
+    xtts_device: str = "cuda:0"
 
     # Audio
     default_sample_rate: int = 24000
