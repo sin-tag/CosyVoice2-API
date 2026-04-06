@@ -15,7 +15,7 @@ DEFAULT_REF_TEXT = "Hello, how are you today? Nice to meet you."
 
 XTTS_LANGUAGES = [
     "en", "es", "fr", "de", "it", "pt", "pl", "tr", "ru",
-    "nl", "cs", "ar", "zh-cn", "ja", "hu", "ko", "hi",
+    "nl", "cs", "ar", "zh-cn", "zh", "ja", "hu", "ko", "hi",
 ]
 
 
