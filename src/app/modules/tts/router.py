@@ -43,6 +43,7 @@ async def list_engines(_: ApiKey):
 
 
 @router.get("/xtts/languages", response_model=LanguageListResponse)
+@router.get("/omni/languages", response_model=LanguageListResponse, include_in_schema=False)
 async def xtts_languages(_: ApiKey):
     engine = engine_registry.get("xtts")
     return LanguageListResponse(engine="xtts", languages=engine.supported_languages)
@@ -84,12 +85,14 @@ async def _generate(engine_name: str, body: TTSGenerateRequest, db):
 
 
 @router.post("/xtts/generate", response_model=SynthesisResponse)
+@router.post("/omni/generate", response_model=SynthesisResponse, include_in_schema=False)
 async def generate_xtts(body: TTSGenerateRequest, db: DB, _: ApiKey):
     wav_bytes, sr, resp = await _generate("xtts", body, db)
     return resp
 
 
 @router.post("/xtts/generate/audio")
+@router.post("/omni/generate/audio", include_in_schema=False)
 async def generate_xtts_audio(body: TTSGenerateRequest, db: DB, _: ApiKey):
     """Return raw WAV audio bytes (for direct playback)."""
     wav_bytes, sr, resp = await _generate("xtts", body, db)
@@ -269,5 +272,6 @@ async def _stream_tts(engine_name: str, body: TTSStreamRequest, db):
 
 
 @router.post("/xtts/stream")
+@router.post("/omni/stream", include_in_schema=False)
 async def stream_xtts(body: TTSStreamRequest, db: DB, _: ApiKey):
     return await _stream_tts("xtts", body, db)

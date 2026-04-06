@@ -81,7 +81,9 @@ async def websocket_tts(ws: WebSocket, engine_name: str):
             await ws.close()
             return
 
-        meta_engine = engine_registry.get(engine_name)
+        # Alias: omni → xtts for backward compat
+        resolved_engine = "xtts" if engine_name == "omni" else engine_name
+        meta_engine = engine_registry.get(resolved_engine)
 
         if not meta_engine.supports_language(language):
             await ws.send_json({
@@ -109,7 +111,7 @@ async def websocket_tts(ws: WebSocket, engine_name: str):
                 return
 
         # Pick least-busy GPU replica
-        engine, semaphore, gpu_idx = engine_registry.pick(engine_name)
+        engine, semaphore, gpu_idx = engine_registry.pick(resolved_engine)
         stop_event = threading.Event()
 
         start = time.perf_counter()
@@ -191,7 +193,7 @@ async def websocket_tts(ws: WebSocket, engine_name: str):
 
                 record = await record_history(
                     db,
-                    engine_name=engine_name,
+                    engine_name=resolved_engine,
                     text=text,
                     language=language,
                     voice_id=voice_id,
@@ -207,7 +209,7 @@ async def websocket_tts(ws: WebSocket, engine_name: str):
             logger.warning("Failed to record history for WebSocket generation", exc_info=True)
 
         # synthesis_complete
-        slots = engine_registry.gpu_slots(engine_name)
+        slots = engine_registry.gpu_slots(resolved_engine)
         await ws.send_json({
             "message_type": "synthesis_complete",
             "request_id": request_id,

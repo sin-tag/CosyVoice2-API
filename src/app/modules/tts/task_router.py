@@ -25,6 +25,7 @@ router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
 
 
 @router.post("/tts/xtts")
+@router.post("/tts/omni", include_in_schema=False)
 async def submit_xtts_task(body: TTSGenerateRequest, db: DB, _: ApiKey):
     """Submit an OmniVoice TTS task to the queue. Returns task_id + status immediately."""
     task = await task_queue.submit(
